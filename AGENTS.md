@@ -37,6 +37,9 @@ src/guap_teacher_mcp/
                #   группы, parse_form_fields для write-форм
                #   (чистые функции на HTML-строке)
   skills.py    # загрузка навыков из skills/ и регистрация skill:// ресурсов
+               #   (два корня: личный ~/.agents/skills побеждает канон)
+  distribute.py # посев/сравнение личных копий навыков (~/.agents/skills)
+  cli.py        # подкоманды guap-teacher: init, skills diff (без аргументов — сервер)
   server.py    # MCPServer-инструменты (stdio) + skill:// ресурсы
 skills/        # канонические агентские навыки: skills/<имя>/SKILL.md
 .zcode/skills/ # стабы для локального обнаружения навыков в ZCode
