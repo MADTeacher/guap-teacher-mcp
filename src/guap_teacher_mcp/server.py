@@ -18,6 +18,7 @@ as read-only skill:// resources (Skills over MCP).
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from datetime import date, datetime
@@ -39,7 +40,18 @@ mcp = MCPServer("guap-teacher")
 
 MAX_PAGE_EXCERPT = 4000
 MAX_MATERIAL_SIZE = 8 * 1024 * 1024  # portal-side upload limit
-DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "guap_reports"
+DEFAULT_DOWNLOAD_DIR_NAME = ".guap_mcp_tmp"
+
+
+def default_download_dir() -> Path:
+    """Download dir for report/material files (overridable via GUAP_DOWNLOAD_DIR).
+
+    Defaults to '<cwd>/.guap_mcp_tmp': the MCP server is launched from the
+    workspace (uv --directory <workspace> run), so student files stay inside
+    the workspace instead of leaking to ~/Downloads.
+    """
+    env = os.environ.get("GUAP_DOWNLOAD_DIR")
+    return Path(env) if env else Path.cwd() / DEFAULT_DOWNLOAD_DIR_NAME
 
 FILENAME_IN_CD = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)\"?", re.IGNORECASE)
 
@@ -363,9 +375,10 @@ async def download_report(report_id: int, save_dir: Optional[str] = None) -> str
 
     GET /inside/professor/reports/{id}/download. Имя файла берётся из
     заголовка Content-Disposition; по умолчанию сохраняется в
-    ~/Downloads/guap_reports.
+    <workspace>/.guap_mcp_tmp (переопределяется GUAP_DOWNLOAD_DIR) —
+    файлы не покидают workspace.
     """
-    out_dir = Path(save_dir) if save_dir else DEFAULT_DOWNLOAD_DIR
+    out_dir = Path(save_dir) if save_dir else default_download_dir()
     with _authed_client() as client:
         response = client.get(f"/inside/professor/reports/{report_id}/download")
     if response.status_code != 200:
@@ -1308,11 +1321,12 @@ async def download_url(url: str, save_dir: Optional[str] = None) -> str:
 
     Принимаются только пути/ссылки на pro.guap.ru (например, file_url из
     list_materials). Имя файла — из Content-Disposition, сохранение в
-    ~/Downloads/guap_reports (или save_dir).
+    <workspace>/.guap_mcp_tmp (или save_dir; переопределяется
+    GUAP_DOWNLOAD_DIR) — файлы не покидают workspace.
     """
     if "pro.guap.ru" not in url and not url.startswith("/"):
         return _dump({"error": "разрешены только ссылки pro.guap.ru"})
-    out_dir = Path(save_dir) if save_dir else DEFAULT_DOWNLOAD_DIR
+    out_dir = Path(save_dir) if save_dir else default_download_dir()
     with _authed_client() as client:
         response = client.get(url)
     if response.status_code != 200:

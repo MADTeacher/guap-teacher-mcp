@@ -19,6 +19,7 @@ session.json
 .env
 
 # Working dirs: student reports / drafts / local backups
+.guap_mcp_tmp/
 .review_tmp/
 .scratch/
 *.orig
