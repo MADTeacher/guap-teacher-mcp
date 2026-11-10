@@ -22,6 +22,7 @@ session.json
 .guap_mcp_tmp/
 .review_tmp/
 .scratch/
+.tmp_pkgtest/
 *.orig
 *.rej
 
