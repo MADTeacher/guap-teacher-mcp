@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+
+# Session data — never commit
+.session/
+cookies.json
+session.json
+.env
+
+# Tooling
+.pytest_cache/
+.ruff_cache/

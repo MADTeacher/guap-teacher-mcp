@@ -1,0 +1,1019 @@
+"""Pure HTML parsers for the teacher-facing pages of pro.guap.ru.
+
+Every function takes an HTML string and returns plain data (dicts/lists),
+so everything here is trivially testable on fixtures. Network access lives
+in client.py, MCP wiring in server.py.
+
+Known page layouts (verified 2026-11):
+
+/inside/professor/reports     table: student, group, task, status, comments,
+                              deadlines; row action links .../{id}/edit|download
+/inside/professor/tasks       table: order, subject, name, type, deadline,
+                              visibility, updated; links /show, /{sem}/{id}/edit
+/inside/professor/materials   table: file link, subject, name, groups,
+                              visibility, added; row actions /{sem}/{id}/edit,
+                              /{sem}/{id}/copy, /{id}/transfer, /{id}/remove
+                              (the edit link gives material_id)
+/inside/subjects/new          search form; results are /inside/subjects/{id}
+                              links (a table is NOT used here); search only
+                              fires when the `searchtext` param is present
+/inside/subjects/{id}         card: h5 "Key: value" fields, groups, teachers
+/inside/profile/{id}          student card: h3.text-center name + h5 fields,
+                              contact email inside the page text
+/inside/professor/tasks/{id}/show  h5 card + two tables: course students
+                              (not-submitted rows carry .../reports/{task}/
+                              {student}/create links) and submitted reports
+/inside/professor/tasks/{sem}/{id}/edit  multipart form; subjects[]/groups[]
+                              selects are empty select2 widgets (absent from
+                              the POST = unchanged on the server)
+/inside/professor/materials/create     multipart form (subjects[]/groups[]
+                              supplied by the caller), file or external url
+/inside/professor/materials/{sem}/{id}/edit  multipart form, action
+                              /inside/professor/materials/{id}?_method=PUT
+                              (isPublic/isNeedNotification checkboxes,
+                              subjects[]/groups[] selects are empty widgets)
+/inside/professor/notice/create/{sem}  multipart form, action
+                              /inside/professor/notice/; hidden semester,
+                              idepc[] disciplines, grid[] groups, type
+                              select, title, descr, startDatetime/
+                              endDatetime (datetime-local), upload file
+/inside/professor/notice/new   table: order, title, subject, groups,
+                              activity, description, dates; action links
+                              /inside/professor/notice/{id}/{sem} and
+                              .../{sem}/edit|copy|remove
+/inside/professor/notice/{id}/{sem}    notice card: disabled form fields
+                              (semester/subject/type/title/description/
+                              show dates) + one student table with h5
+                              "Группа N" separator rows (№/ФИО/Статус)
+/inside/groups/{gid}/info      group card: h3 label, h5 fields, students
+                              table №/ФИО/Статус/Номер студенческого/
+                              Средний балл
+/inside/groups/{subject}/{group}       "Список группы" grade sheet: name,
+                              per-task "принят (N)" cells, "N из M" total
+/inside/students/classes/schedule/{day,week}/...  tables with pair/time and
+                              per-day cells; filters: group, teacher,
+                              building, room
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Optional
+
+from bs4 import BeautifulSoup
+
+SUBJECT_LINK_RE = re.compile(r"^/inside/subjects/(\d+)$")
+PAGE_PARAM_RE = re.compile(r"[?&]page=(\d+)")
+REPORT_ACTION_RE = re.compile(r"^/inside/professor/reports/(\d+)/(edit|download)$")
+REPORT_CREATE_RE = re.compile(r"^/inside/professor/reports/(\d+)/(\d+)/create$")
+TASK_ACTION_RE = re.compile(r"^/inside/professor/tasks/(\d+)/show$")
+TASK_EDIT_RE = re.compile(r"^/inside/professor/tasks/(\d+)/(\d+)/edit$")
+TASK_REMOVE_RE = re.compile(r"^/inside/professor/tasks/(\d+)/remove$")
+TASK_UPDATE_ACTION_RE = re.compile(r"^/inside/professor/tasks/(\d+)$")
+MATERIALS_STORE_ACTION_RE = re.compile(r"^/inside/professor/materials/store$")
+MATERIAL_EDIT_RE = re.compile(r"^/inside/professor/materials/(\d+)/(\d+)/edit$")
+MATERIAL_UPDATE_ACTION_RE = re.compile(r"^/inside/professor/materials/(\d+)$")
+NOTICE_STORE_ACTION_RE = re.compile(r"^/inside/professor/notice/?$")
+PROFILE_LINK_RE = re.compile(r"^/inside/profile/(\d+)$")
+NOTICE_VIEW_RE = re.compile(r"^/inside/professor/notice/(\d+)/(\d+)$")
+NOTICE_ACTION_RE = re.compile(r"^/inside/professor/notice/(\d+)/(\d+)/(edit|copy|remove)$")
+
+MARK_OF_RE = re.compile(r"(\d+)\s+из\s+(\d+)")
+MARK_IN_PARENS_RE = re.compile(r"\((\d+)\)")
+STATUS_PARENS_RE = re.compile(r"\s*\([^)]*\)\s*$")
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
+def _soup(html: str) -> BeautifulSoup:
+    return BeautifulSoup(html, "html.parser")
+
+
+def _cell_text(cell) -> str:
+    return re.sub(r"\s+", " ", cell.get_text(" ", strip=True)).strip()
+
+
+def _first_table(html: str) -> Optional[BeautifulSoup]:
+    return _soup(html).find("table")
+
+
+def parse_filter_options(
+    html: str, only: Optional[list[str]] = None
+) -> dict[str, list[dict[str, str]]]:
+    """Collect <select> filters as {name: [{value, label}]} (service selects skipped).
+
+    `only` selects which filters to keep: None keeps everything (previous
+    behaviour), an empty list drops all filter options (the schedule student
+    filter alone is ~500 entries and can blow up the MCP response), and a
+    list of names keeps just those filters.
+    """
+    skip = {"token", "switch", "perPage"}
+    options: dict[str, list[dict[str, str]]] = {}
+    for select in _soup(html).select("select[name]"):
+        name = select.get("name")
+        if name in skip or name in options:
+            continue
+        if only is not None and name not in only:
+            continue
+        options[name] = [
+            {"value": opt.get("value", ""), "label": opt.get_text(" ", strip=True)}
+            for opt in select.find_all("option")
+        ]
+    return options
+
+
+def selected_value(html: str, name: str) -> Optional[str]:
+    """Value of the selected option of the first select[name=name].
+
+    Falls back to the first option's value (browser behaviour for selects
+    without a marked option). Used for the portal's default semester.
+    """
+    select = _soup(html).select_one(f"select[name='{name}']")
+    if select is None:
+        return None
+    selected = select.find("option", selected=True)
+    if selected is not None:
+        return selected.get("value")
+    first = select.find("option")
+    return first.get("value") if first else None
+
+
+def parse_reports(html: str, filters: Optional[list[str]] = None) -> dict:
+    """Parse /inside/professor/reports into rows + filter options."""
+    table = _first_table(html)
+    rows: list[dict] = []
+    if table is not None:
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) < 10:
+                continue
+            report_id: Optional[int] = None
+            download_url: Optional[str] = None
+            for a in cells[0].find_all("a", href=True):
+                match = REPORT_ACTION_RE.match(a["href"])
+                if match:
+                    report_id = int(match.group(1))
+                    if match.group(2) == "download":
+                        download_url = a["href"]
+            student_link = cells[1].find("a", href=PROFILE_LINK_RE)
+            task_link = cells[3].find("a", href=True)
+            rows.append(
+                {
+                    "report_id": report_id,
+                    "student": _cell_text(cells[1]),
+                    "student_id": (
+                        int(PROFILE_LINK_RE.match(student_link["href"]).group(1))
+                        if student_link
+                        else None
+                    ),
+                    "group": _cell_text(cells[2]),
+                    "task": _cell_text(cells[3]),
+                    "task_url": task_link["href"] if task_link else None,
+                    "status": _cell_text(cells[4]),
+                    "student_comment": _cell_text(cells[5]),
+                    "teacher_comment": _cell_text(cells[6]),
+                    "deadline": _cell_text(cells[7]),
+                    "uploaded_at": _cell_text(cells[8]),
+                    "checked_at": _cell_text(cells[9]),
+                    "download_url": download_url,
+                }
+            )
+    return {
+        "count": len(rows),
+        "reports": rows,
+        "filter_options": parse_filter_options(html, filters),
+    }
+
+
+REPORT_FORM_RE = re.compile(r"^/inside/professor/reports/(\d+)$")
+
+# The report edit form carries `status` as a plain field without <option>s;
+# the enum comes from the status filter of /inside/professor/reports
+# (verified 2026-11-09).
+KNOWN_REPORT_STATUSES: list[dict[str, str]] = [
+    {"value": "1", "label": "ожидает проверки"},
+    {"value": "2", "label": "принят"},
+    {"value": "3", "label": "не принят"},
+]
+
+
+def resolve_report_status(
+    status: str, options: Optional[list[dict[str, str]]] = None
+) -> Optional[dict[str, str]]:
+    """Resolve a status given as a value or a label to {value, label}.
+
+    `options` defaults to KNOWN_REPORT_STATUSES; pass the parsed form's
+    status_options to prefer the page's own list when it has one.
+    """
+    for option in options if options else KNOWN_REPORT_STATUSES:
+        if status == option["value"] or status.lower() == option["label"].lower():
+            return option
+    return None
+
+
+def resolve_report_mark(
+    mark: Optional[int], current_mark: Optional[str]
+) -> tuple[Optional[str], bool]:
+    """Resolve the markPoint value to submit with a report review form.
+
+    mark=None means "keep the current mark": the parsed form's markPoint
+    value is re-sent unchanged (kept=True), so only the status/comment
+    change. An explicit mark is stringified for the POST (kept=False);
+    negative marks are rejected by the caller before reaching this helper.
+
+    Returns (mark_point_for_the_post, kept); the first element is None
+    only when the mark is kept and the form has no markPoint field at all.
+    """
+    if mark is None:
+        return current_mark, True
+    return str(mark), False
+
+
+# Notice `type` options of the create form (/inside/professor/notice/create,
+# verified 2026-11-10; "succes" is the portal's own spelling, kept verbatim).
+KNOWN_NOTICE_TYPES: list[dict[str, str]] = [
+    {"value": "info", "label": "Информация"},
+    {"value": "danger", "label": "Важное"},
+    {"value": "warning", "label": "Предупреждение"},
+    {"value": "succes", "label": "Поздравление"},
+]
+
+
+def resolve_notice_type(
+    notice_type: str, options: Optional[list[dict[str, str]]] = None
+) -> Optional[dict[str, str]]:
+    """Resolve a notice type given as a value or a label to {value, label}.
+
+    `options` defaults to KNOWN_NOTICE_TYPES; pass the parsed form's
+    selects["type"]["options"] to prefer the page's own list.
+    """
+    for option in options if options else KNOWN_NOTICE_TYPES:
+        if (
+            notice_type == option["value"]
+            or notice_type.lower() == option["label"].lower()
+        ):
+            return option
+    return None
+
+
+def parse_report_review_form(html: str, report_id: Optional[int] = None) -> dict:
+    """Parse the report review form (GET /inside/professor/reports/{id}/edit).
+
+    Returns {"fields": {name: current value}, "status_options": [...]},
+    where fields carries every input/textarea value (token, _method,
+    taskId, student, ...) needed to submit the form, and status_options
+    lists the status <select> options as {value, label}.
+    """
+    soup = _soup(html)
+    form = None
+    for candidate in soup.find_all("form", action=True):
+        match = REPORT_FORM_RE.match(candidate["action"])
+        if match and (report_id is None or int(match.group(1)) == report_id):
+            form = candidate
+            break
+    if form is None:
+        return {"fields": {}, "status_options": []}
+
+    fields: dict[str, str] = {}
+    status_options: list[dict[str, str]] = []
+    for node in form.find_all(["input", "select", "textarea"]):
+        name = node.get("name")
+        if not name or name in fields:
+            continue
+        if node.name == "select":
+            for option in node.find_all("option"):
+                status_options.append(
+                    {"value": option.get("value", ""), "label": _cell_text(option)}
+                )
+            selected = node.find("option", selected=True)
+            fields[name] = (selected.get("value", "") if selected else "") or ""
+        elif node.get("type") in ("radio", "checkbox"):
+            if node.get("checked") is not None:
+                fields[name] = node.get("value", "")
+        elif node.name == "textarea":
+            fields[name] = node.get_text("", strip=True)
+        else:
+            fields[name] = node.get("value", "")
+    return {"fields": fields, "status_options": status_options}
+
+
+def parse_h5_card(html: str) -> dict[str, str]:
+    """Parse a detail page (task/subject) built from h5 'Key: value' fields."""
+    soup = _soup(html)
+    title_node = soup.select_one("h3.page__title") or soup.select_one("h3")
+    fields: dict[str, str] = {}
+    for h5 in soup.find_all("h5"):
+        text = h5.get_text(" ", strip=True)
+        if ":" in text:
+            key, _, value = text.partition(":")
+            fields[key.strip()] = value.strip()
+    return {
+        "title": title_node.get_text(" ", strip=True) if title_node else None,
+        "fields": fields,
+    }
+
+
+def parse_tasks(html: str, filters: Optional[list[str]] = None) -> dict:
+    """Parse /inside/professor/tasks into rows + filter options."""
+    table = _first_table(html)
+    rows: list[dict] = []
+    if table is not None:
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) < 8:
+                continue
+            task_id: Optional[int] = None
+            for a in cells[0].find_all("a", href=True):
+                match = TASK_ACTION_RE.match(a["href"])
+                if match:
+                    task_id = int(match.group(1))
+                    break
+            subject_link = cells[2].find("a", href=SUBJECT_LINK_RE)
+            name_link = cells[3].find("a", href=True)
+            rows.append(
+                {
+                    "task_id": task_id,
+                    "order": _cell_text(cells[1]),
+                    "subject": _cell_text(cells[2]),
+                    "subject_id": (
+                        int(SUBJECT_LINK_RE.match(subject_link["href"]).group(1))
+                        if subject_link
+                        else None
+                    ),
+                    "name": _cell_text(cells[3]),
+                    "task_url": name_link["href"] if name_link else None,
+                    "type": _cell_text(cells[4]),
+                    "deadline": _cell_text(cells[5]),
+                    "visible_to_students": bool(_cell_text(cells[6])),
+                    "updated_at": _cell_text(cells[7]),
+                }
+            )
+    return {
+        "count": len(rows),
+        "tasks": rows,
+        "filter_options": parse_filter_options(html, filters),
+    }
+
+
+def parse_materials(html: str, filters: Optional[list[str]] = None) -> dict:
+    """Parse /inside/professor/materials into rows + filter options.
+
+    Row actions (edit/copy/transfer/remove) live in the first cell; the
+    edit link /inside/professor/materials/{sem}/{id}/edit yields
+    material_id and edit_url.
+    """
+    table = _first_table(html)
+    rows: list[dict] = []
+    if table is not None:
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) < 7:
+                continue
+            material_id: Optional[int] = None
+            edit_url: Optional[str] = None
+            for a in cells[0].find_all("a", href=True):
+                edit_match = MATERIAL_EDIT_RE.match(a["href"].split("?", 1)[0])
+                if edit_match:
+                    material_id = int(edit_match.group(2))
+                    edit_url = a["href"]
+                    break
+            file_link = cells[1].find("a", href=True)
+            subject_link = cells[2].find("a", href=SUBJECT_LINK_RE)
+            rows.append(
+                {
+                    "material_id": material_id,
+                    "edit_url": edit_url,
+                    "name": _cell_text(cells[3]),
+                    "file_text": _cell_text(cells[1]),
+                    "file_url": file_link["href"] if file_link else None,
+                    "subject": _cell_text(cells[2]),
+                    "subject_id": (
+                        int(SUBJECT_LINK_RE.match(subject_link["href"]).group(1))
+                        if subject_link
+                        else None
+                    ),
+                    "groups": _cell_text(cells[4]),
+                    "visible": bool(_cell_text(cells[5])),
+                    "added_at": _cell_text(cells[6]),
+                }
+            )
+    return {
+        "count": len(rows),
+        "materials": rows,
+        "filter_options": parse_filter_options(html, filters),
+    }
+
+
+def parse_notices(html: str, filters: Optional[list[str]] = None) -> dict:
+    """Parse /inside/professor/notice/new into rows + filter options.
+
+    Table columns: №, Заголовок, Название дисциплины, Группа, Активность,
+    Описание, Дата создания, Время показа c/по, Действия. The activity cell
+    carries only a tooltip icon, so the icon's title ("Активно"/"Не
+    активно") is used; the description cell is truncated on the portal, so
+    the span's title attribute (the full text) is preferred.
+    """
+    table = _first_table(html)
+    rows: list[dict] = []
+    if table is not None:
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) < 10:
+                continue
+            notice_id: Optional[int] = None
+            actions: dict[str, Optional[str]] = {
+                "view": None,
+                "edit": None,
+                "copy": None,
+                "remove": None,
+            }
+            for a in cells[9].find_all("a", href=True):
+                href = a["href"].split("?", 1)[0]
+                action_match = NOTICE_ACTION_RE.match(href)
+                view_match = NOTICE_VIEW_RE.match(href)
+                if action_match:
+                    notice_id = int(action_match.group(1))
+                    actions[action_match.group(3)] = href
+                elif view_match:
+                    notice_id = int(view_match.group(1))
+                    actions["view"] = href
+
+            subject_link = cells[2].find("a", href=SUBJECT_LINK_RE)
+            groups: list[dict] = []
+            for a in cells[3].find_all("a", href=True):
+                info_match = GROUP_INFO_RE.match(a["href"].split("?", 1)[0])
+                if info_match:
+                    groups.append(
+                        {
+                            "group_id": int(info_match.group(1)),
+                            "name": _cell_text(a),
+                        }
+                    )
+
+            activity_icon = cells[4].find(title=True)
+            active = (
+                activity_icon["title"].strip()
+                if activity_icon and activity_icon.get("title")
+                else (_cell_text(cells[4]) or None)
+            )
+            descr_span = cells[5].find("span", title=True)
+            description = (
+                descr_span["title"].strip()
+                if descr_span and descr_span.get("title")
+                else _cell_text(cells[5])
+            )
+            rows.append(
+                {
+                    "notice_id": notice_id,
+                    "title": _cell_text(cells[1]),
+                    "subject": _cell_text(cells[2]),
+                    "subject_id": (
+                        int(SUBJECT_LINK_RE.match(subject_link["href"]).group(1))
+                        if subject_link
+                        else None
+                    ),
+                    "groups": groups,
+                    "active": active,
+                    "description": description,
+                    "created_at": _cell_text(cells[6]),
+                    "show_from": _cell_text(cells[7]),
+                    "show_until": _cell_text(cells[8]),
+                    "actions": actions,
+                }
+            )
+    return {
+        "count": len(rows),
+        "notices": rows,
+        "filter_options": parse_filter_options(html, filters),
+        "default_semester": selected_value(html, "semester"),
+    }
+
+
+def _pagination_range(soup: BeautifulSoup) -> tuple[int, int]:
+    """Extract (current_page, last_page) from Laravel/Bootstrap pagination.
+
+    The portal renders ul.pagination with li.page-item items; the active
+    item holds the current page number and links carry ?page=N. Missing
+    markup means a single page.
+    """
+    nav = soup.select_one("ul.pagination")
+    if nav is None:
+        return 1, 1
+    current = 1
+    active = nav.select_one("li.page-item.active .page-link")
+    if active is not None:
+        try:
+            current = int(active.get_text(strip=True))
+        except ValueError:
+            current = 1
+    last = current
+    for a in nav.find_all("a", class_="page-link"):
+        match = PAGE_PARAM_RE.search(a.get("href", ""))
+        if match:
+            last = max(last, int(match.group(1)))
+    return current, last
+
+
+def parse_subjects(html: str) -> dict:
+    """Parse /inside/subjects/new search results: /inside/subjects/{id} links.
+
+    The portal serves the list 10 subjects per page (per_page is ignored),
+    so page/last_page from the pagination markup are returned too.
+    """
+    soup = _soup(html)
+    subjects: dict[int, str] = {}
+    for a in soup.find_all("a", href=SUBJECT_LINK_RE):
+        subject_id = int(SUBJECT_LINK_RE.match(a["href"]).group(1))
+        subjects.setdefault(subject_id, a.get_text(" ", strip=True))
+    current_page, last_page = _pagination_range(soup)
+    return {
+        "count": len(subjects),
+        "page": current_page,
+        "last_page": last_page,
+        "subjects": [
+            {"subject_id": sid, "name": name} for sid, name in subjects.items()
+        ],
+        "filter_options": parse_filter_options(html),
+        "default_semester": selected_value(html, "semester"),
+    }
+
+
+def parse_schedule(html: str, filters: Optional[list[str]] = None) -> dict:
+    """Parse day/week schedule tables into lessons + filter options.
+
+    Day view: rows of (pair, time, discipline cell).
+    Week view: rows of (pair, time, one cell per weekday).
+    Discipline cells are returned as {text, links} because the portal puts
+    subject/room/teacher links inside.
+    """
+    table = _first_table(html)
+    view: dict = {
+        "headers": [],
+        "rows": [],
+        "filter_options": parse_filter_options(html, filters),
+    }
+    if table is None:
+        return view
+
+    header_cells = table.find_all("tr")[0].find_all(["th", "td"])
+    view["headers"] = [_cell_text(c) for c in header_cells]
+
+    for tr in table.find_all("tr")[1:]:
+        cells = tr.find_all("td")
+        if len(cells) < 3:
+            continue
+        day_cells = [
+            {
+                "text": _cell_text(cell),
+                "links": [a["href"] for a in cell.find_all("a", href=True)],
+            }
+            for cell in cells[2:]
+        ]
+        view["rows"].append(
+            {"pair": _cell_text(cells[0]), "time": _cell_text(cells[1]), "days": day_cells}
+        )
+    return view
+
+
+def parse_student_profile(html: str) -> dict:
+    """Parse a student profile card (GET /inside/profile/{id}).
+
+    Returns {"name", "fields": {key: value}, "email"}: the name comes from
+    h3.text-center, the h5 "Key: value" fields mirror other portal cards,
+    and the contact email is the first address found in the page text.
+    """
+    soup = _soup(html)
+    name_node = soup.select_one("h3.text-center")
+    card = parse_h5_card(html)
+    email_match = EMAIL_RE.search(soup.get_text(" ", strip=True))
+    return {
+        "name": name_node.get_text(" ", strip=True) if name_node else None,
+        "fields": card["fields"],
+        "email": email_match.group(0) if email_match else None,
+    }
+
+
+def parse_task_card(html: str) -> dict:
+    """Parse a task card (GET /inside/professor/tasks/{id}/show).
+
+    Combines the h5 "Key: value" card with the two tables below it:
+    the course-student table (every row carries a .../reports/{task}/
+    {student}/create link — it is just the "upload report" action, present
+    for submitted students too, so student ids are taken from it but the
+    links themselves never enter the result) and the submitted reports
+    table (student, status, dates, comments, report_id and the report
+    download_url from the actions cell). Students of the course minus the
+    reports table = not_submitted.
+    """
+    soup = _soup(html)
+    card = parse_h5_card(html)
+    subject_id: Optional[int] = None
+    manage: dict[str, Optional[str]] = {"edit_url": None, "remove_url": None}
+
+    for anchor in soup.find_all("a", href=True):
+        href = anchor["href"].split("?", 1)[0]
+        subject_match = SUBJECT_LINK_RE.match(href)
+        if subject_match and subject_id is None:
+            subject_id = int(subject_match.group(1))
+        edit_match = TASK_EDIT_RE.match(href)
+        if edit_match:
+            manage["edit_url"] = href
+        remove_match = TASK_REMOVE_RE.match(href)
+        if remove_match:
+            manage["remove_url"] = href
+
+    reports: list[dict] = []
+    students: list[dict] = []
+    for table in soup.find_all("table"):
+        first_row = table.find("tr")
+        if first_row is None:
+            continue
+        headers = [_cell_text(c) for c in first_row.find_all(["th", "td"])]
+        if "Студент" in headers and "Действия" in headers:
+            reports = _parse_task_reports_table(table)
+        elif "ФИО" in headers and any("Загрузить отчет" in h for h in headers):
+            students = _parse_task_students_table(table)
+
+    submitted_ids = {row["student_id"] for row in reports if row["student_id"]}
+    not_submitted = [
+        row for row in students if row["student_id"] not in submitted_ids
+    ]
+    return {
+        "title": card["title"],
+        "fields": card["fields"],
+        "subject_id": subject_id,
+        "reports": reports,
+        "students": students,
+        "not_submitted": not_submitted,
+        "manage": manage,
+    }
+
+
+def _parse_task_reports_table(table) -> list[dict]:
+    """Rows of the submitted-reports table on a task card."""
+    rows: list[dict] = []
+    for tr in table.find_all("tr")[1:]:
+        cells = tr.find_all("td")
+        if len(cells) < 7:
+            continue
+        student_link = cells[0].find("a", href=PROFILE_LINK_RE)
+        status_text = _cell_text(cells[1])
+        mark_match = MARK_OF_RE.search(status_text)
+        report_id: Optional[int] = None
+        download_url: Optional[str] = None
+        for anchor in cells[6].find_all("a", href=True):
+            action_match = REPORT_ACTION_RE.match(anchor["href"].split("?", 1)[0])
+            if action_match:
+                report_id = int(action_match.group(1))
+                if action_match.group(2) == "download":
+                    download_url = anchor["href"]
+        rows.append(
+            {
+                "student": _cell_text(cells[0]),
+                "student_id": (
+                    int(PROFILE_LINK_RE.match(student_link["href"]).group(1))
+                    if student_link
+                    else None
+                ),
+                "report_id": report_id,
+                "status": status_text,
+                "mark": int(mark_match.group(1)) if mark_match else None,
+                "max_mark": int(mark_match.group(2)) if mark_match else None,
+                "uploaded_at": _cell_text(cells[2]),
+                "checked_at": _cell_text(cells[3]),
+                "student_comment": _cell_text(cells[4]),
+                "teacher_comment": _cell_text(cells[5]),
+                "download_url": download_url,
+            }
+        )
+    return rows
+
+
+def _parse_task_students_table(table) -> list[dict]:
+    """Course students (the «п.н. / ФИО / Оценка / Загрузить отчет» table).
+
+    The «Загрузить отчет» column carries a create link for EVERY student
+    (teacher-side action), so the link only serves as the student-id source;
+    it never enters the result (no report-on-behalf functionality).
+    """
+    rows: list[dict] = []
+    for tr in table.find_all("tr")[1:]:
+        cells = tr.find_all("td")
+        if len(cells) < 2:
+            continue
+        create_link = None
+        for anchor in tr.find_all("a", href=True):
+            create_match = REPORT_CREATE_RE.match(anchor["href"].split("?", 1)[0])
+            if create_match:
+                create_link = create_match
+                break
+        if create_link is None:
+            continue
+        name = STATUS_PARENS_RE.sub("", _cell_text(cells[1])).strip()
+        rows.append({"student": name, "student_id": int(create_link.group(2))})
+    return rows
+
+
+def _notice_form_fields(soup: BeautifulSoup) -> dict[str, object]:
+    """Notice card fields as {label: value} from its .form-group blocks.
+
+    The card is rendered as a disabled form (its <form> open tag is broken
+    on the portal), so labels of the form groups serve as field keys:
+    single selects resolve to the selected option label, multi-selects to
+    a list of them (the groups select is filled by JS and is empty in the
+    HTML), inputs/textareas to their value/text. File inputs are skipped.
+    """
+    fields: dict[str, object] = {}
+    for group in soup.select(".form-group"):
+        label = group.find("label")
+        control = group.find(["input", "select", "textarea"])
+        if label is None or control is None:
+            continue
+        key = _cell_text(label).rstrip(":").strip()
+        if not key or key in fields:
+            continue
+        if control.name == "select":
+            selected = [_cell_text(o) for o in control.find_all("option", selected=True)]
+            if control.get("multiple") is not None:
+                fields[key] = selected
+            else:
+                fields[key] = selected[0] if selected else None
+        elif control.name == "textarea":
+            fields[key] = control.get_text("", strip=True)
+        elif control.get("type") == "file":
+            continue
+        else:
+            fields[key] = control.get("value", "")
+    return fields
+
+
+def _notice_student_groups(soup: BeautifulSoup) -> list[dict]:
+    """Per-group students of a notice card: the «Список уведомляемых» table.
+
+    One table (№/ФИО/Статус) holds every group: an h5 "Группа N" row starts
+    a new group, the rows below it are that group's students with their
+    read status ("прочитано"/"не прочитано").
+    """
+    groups: list[dict] = []
+    for table in soup.find_all("table"):
+        first_row = table.find("tr")
+        if first_row is None:
+            continue
+        headers = [_cell_text(c) for c in first_row.find_all(["th", "td"])]
+        if "ФИО" not in headers or "Статус" not in headers:
+            continue
+        current: Optional[dict] = None
+        for tr in table.find_all("tr")[1:]:
+            header = tr.find("h5")
+            if header is not None:
+                current = {"label": _cell_text(header), "students": []}
+                groups.append(current)
+                continue
+            cells = tr.find_all("td")
+            if len(cells) < 3:
+                continue
+            if current is None:
+                current = {"label": None, "students": []}
+                groups.append(current)
+            current["students"].append(
+                {"name": _cell_text(cells[1]), "status": _cell_text(cells[2])}
+            )
+    return groups
+
+
+def parse_notice_card(html: str, notice_id: Optional[int] = None) -> dict:
+    """Parse a notice card (GET /inside/professor/notice/{id}/{sem}).
+
+    The page has no h5 "Key: value" card — its fields live in a disabled
+    form — so `fields` maps the form labels to their values (Семестр,
+    Название дисциплины, Группы, Тип, Заголовок, Описание, dates). The
+    "Список уведомляемых студентов" table is split into groups by its h5
+    "Группа N" separator rows. `notice_id`, when given, keeps only the
+    manage links of that notice.
+    """
+    soup = _soup(html)
+    title_node = soup.select_one("h3.page__title") or soup.select_one("h3")
+    manage: dict[str, Optional[str]] = {
+        "edit_url": None,
+        "copy_url": None,
+        "remove_url": None,
+    }
+    for anchor in soup.find_all("a", href=True):
+        href = anchor["href"].split("?", 1)[0]
+        action_match = NOTICE_ACTION_RE.match(href)
+        if action_match and (
+            notice_id is None or int(action_match.group(1)) == notice_id
+        ):
+            manage[f"{action_match.group(3)}_url"] = href
+    return {
+        "title": title_node.get_text(" ", strip=True) if title_node else None,
+        "fields": _notice_form_fields(soup),
+        "groups": _notice_student_groups(soup),
+        "manage": manage,
+    }
+
+
+def parse_group_grades(html: str) -> dict:
+    """Parse the "Список группы" grade sheet (GET /inside/groups/{s}/{g}).
+
+    One table: ФИО | one column per task ("принят (N)") | Итого ("N из M").
+    """
+    table = _first_table(html)
+    rows = table.find_all("tr") if table is not None else []
+    headers = [_cell_text(c) for c in rows[0].find_all(["th", "td"])] if rows else []
+    task_columns = headers[1:-1] if len(headers) >= 3 else []
+
+    out_rows: list[dict] = []
+    for tr in rows[1:]:
+        cells = tr.find_all("td")
+        if len(cells) < 3:
+            continue
+        marks = []
+        for cell, task in zip(cells[1 : 1 + len(task_columns)], task_columns):
+            text = _cell_text(cell)
+            mark_match = MARK_IN_PARENS_RE.search(text)
+            marks.append(
+                {
+                    "task": task,
+                    "status": MARK_IN_PARENS_RE.sub("", text).strip() or None,
+                    "mark": int(mark_match.group(1)) if mark_match else None,
+                }
+            )
+        total_match = MARK_OF_RE.search(_cell_text(cells[-1]))
+        out_rows.append(
+            {
+                "name": _cell_text(cells[0]),
+                "marks": marks,
+                "total_mark": int(total_match.group(1)) if total_match else None,
+                "total_max": int(total_match.group(2)) if total_match else None,
+            }
+        )
+
+    group_label = None
+    if table is not None:
+        group_match = re.search(r"Группа\s+(\S+)", _soup(html).get_text(" ", strip=True))
+        if group_match:
+            group_label = group_match.group(1)
+    return {
+        "group": group_label,
+        "task_columns": task_columns,
+        "rows": out_rows,
+    }
+
+
+def parse_group_info(html: str) -> dict:
+    """Parse a group card (GET /inside/groups/{gid}/info).
+
+    The h3.page__title label ("Группа N") gives the group number; the
+    students table is №/ФИО/Статус/Номер студенческого/Средний балл
+    (avg_mark is the raw cell text — the portal shows plain numbers).
+    """
+    soup = _soup(html)
+    title_node = soup.select_one("h3.page__title")
+    group_label: Optional[str] = None
+    if title_node is not None:
+        group_label = re.sub(
+            r"^Группа\s+", "", _cell_text(title_node), flags=re.IGNORECASE
+        ).strip() or None
+
+    students: list[dict] = []
+    for table in soup.find_all("table"):
+        first_row = table.find("tr")
+        if first_row is None:
+            continue
+        headers = [_cell_text(c) for c in first_row.find_all(["th", "td"])]
+        if "ФИО" not in headers or "Номер студенческого" not in headers:
+            continue
+        for tr in table.find_all("tr")[1:]:
+            cells = tr.find_all("td")
+            if len(cells) < 5:
+                continue
+            students.append(
+                {
+                    "name": _cell_text(cells[1]),
+                    "status": _cell_text(cells[2]),
+                    "student_card": _cell_text(cells[3]),
+                    "avg_mark": _cell_text(cells[4]),
+                }
+            )
+    return {"group": group_label, "students": students}
+
+
+GROUP_INFO_RE = re.compile(r"^/inside/groups/(\d+)/info$")
+
+
+def parse_subject_groups(html: str, subject_id: int) -> list[dict]:
+    """Groups of a subject card with their grade-sheet («Печать») links.
+
+    The card links each group twice: /inside/groups/{gid}/info (label) and
+    /inside/groups/{subject_id}/{gid} (the "Список группы" grade sheet).
+    """
+    soup = _soup(html)
+    names: dict[int, str] = {}
+    for anchor in soup.find_all("a", href=True):
+        info_match = GROUP_INFO_RE.match(anchor["href"].split("?", 1)[0])
+        if info_match:
+            names.setdefault(
+                int(info_match.group(1)), anchor.get_text(" ", strip=True)
+            )
+
+    print_re = re.compile(rf"^/inside/groups/{subject_id}/(\d+)$")
+    groups: list[dict] = []
+    seen: set[int] = set()
+    for anchor in soup.find_all("a", href=True):
+        print_match = print_re.match(anchor["href"].split("?", 1)[0])
+        if print_match:
+            group_id = int(print_match.group(1))
+            if group_id in seen:
+                continue
+            seen.add(group_id)
+            groups.append(
+                {
+                    "group_id": group_id,
+                    "name": names.get(group_id),
+                    "grade_sheet_url": anchor["href"].split("?", 1)[0],
+                }
+            )
+    return sorted(groups, key=lambda g: g["name"] or "")
+
+
+def parse_form_fields(html: str, action_re: re.Pattern[str]) -> dict:
+    """Parse the first form whose action path matches `action_re`.
+
+    Generic form reader for write tools (task edit, material create).
+    Returns {} when the form is absent, otherwise:
+
+        action      — form action as-is (query string included, e.g.
+                      "/inside/professor/tasks/1?semesters=28&_method=PUT")
+        method, enctype — form attributes (default "post"/None)
+        values      — {name: str | list[str]} current values; multi-selects
+                      carry lists, everything else plain strings
+        checkboxes  — {name: checked}; unchecked boxes must be OMITTED from
+                      the POST (Laravel treats absent as off)
+        selects     — {name: {multiple, selected, options: [{value,label}]}}
+
+        File inputs are never replayed: the caller supplies files itself.
+    """
+    form = None
+    for candidate in _soup(html).find_all("form", action=True):
+        if action_re.match(candidate["action"].split("?", 1)[0]):
+            form = candidate
+            break
+    if form is None:
+        return {}
+
+    values: dict[str, object] = {}
+    checkboxes: dict[str, bool] = {}
+    selects: dict[str, dict] = {}
+    for node in form.find_all(["input", "select", "textarea"]):
+        name = node.get("name")
+        if not name or name in values or name in checkboxes:
+            continue
+        if node.name == "input" and node.get("type") == "file":
+            continue
+        if node.name == "input" and node.get("type") == "checkbox":
+            checkboxes[name] = node.get("checked") is not None
+        elif node.name == "select":
+            selected = [
+                option.get("value", "")
+                for option in node.find_all("option", selected=True)
+            ]
+            multiple = node.get("multiple") is not None
+            selects[name] = {
+                "multiple": multiple,
+                "selected": selected if multiple else (selected[0] if selected else None),
+                "options": [
+                    {"value": o.get("value", ""), "label": _cell_text(o)}
+                    for o in node.find_all("option")
+                ],
+            }
+            values[name] = selects[name]["selected"]
+        elif node.name == "textarea":
+            values[name] = node.get_text("", strip=True)
+        else:
+            values[name] = node.get("value", "")
+
+    return {
+        "action": form["action"],
+        "method": form.get("method", "post"),
+        "enctype": form.get("enctype"),
+        "values": values,
+        "checkboxes": checkboxes,
+        "selects": selects,
+    }
+
+
+def validate_task_update(
+    name: Optional[str] = None, max_ball: Optional[int] = None
+) -> Optional[str]:
+    """Validate edit_task parameters before touching the task edit form.
+
+    Both parameters are optional overlays (None = leave unchanged):
+    `name` must be non-blank when given, `max_ball` (the form's markpoint
+    field) must be an integer >= 1. Returns a Russian error message for
+    the MCP response, or None when the values are valid.
+    """
+    if name is not None and not name.strip():
+        return "name не может быть пустым"
+    if max_ball is not None and max_ball < 1:
+        return "max_ball должен быть целым числом не меньше 1"
+    return None
