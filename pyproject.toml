@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-guap-teacher = "guap_teacher_mcp.server:main"
+guap-teacher = "guap_teacher_mcp.cli:main"
 
 [dependency-groups]
 dev = [
