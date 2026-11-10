@@ -3,7 +3,14 @@ __pycache__/
 *.py[cod]
 .venv/
 dist/
+build/
 *.egg-info/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Session data — never commit
 .session/
@@ -11,6 +18,16 @@ cookies.json
 session.json
 .env
 
-# Tooling
-.pytest_cache/
-.ruff_cache/
+# Working dirs: student reports / drafts / local backups
+.review_tmp/
+.scratch/
+*.orig
+*.rej
+
+# Local ZCode state (skills stubs under .zcode/skills/ ARE tracked)
+.zcode/config.json
+.zcode/plans/
+
+# OS junk
+Thumbs.db
+Desktop.ini
