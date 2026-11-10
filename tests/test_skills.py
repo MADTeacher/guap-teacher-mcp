@@ -81,6 +81,12 @@ def test_personal_skills_root_env_override(monkeypatch, tmp_path):
     assert personal_skills_root() == tmp_path
 
 
+def test_personal_skills_root_expands_user(monkeypatch, tmp_path):
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("GUAP_SKILLS_DIR", str(Path("~") / "agents-mock"))
+    assert personal_skills_root() == tmp_path / "agents-mock"
+
+
 def test_personal_skills_root_default_is_agents_dir(monkeypatch):
     monkeypatch.delenv("GUAP_SKILLS_DIR", raising=False)
     assert personal_skills_root() == Path.home() / ".agents" / "skills"

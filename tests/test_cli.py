@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from guap_teacher_mcp import skills as skills_mod
 from guap_teacher_mcp.cli import main
 
@@ -57,3 +59,9 @@ def test_skills_diff_prints_statuses(tmp_path, capsys, monkeypatch):
     assert "guap-a: identical" in out
     assert "guap-b: differs" in out
     assert "guap-c: missing" in out
+
+
+def test_empty_skills_dir_is_rejected(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        main(["init", "--skills-dir", ""])
+    assert exc.value.code == 2

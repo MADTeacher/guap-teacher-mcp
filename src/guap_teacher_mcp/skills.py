@@ -62,7 +62,7 @@ def personal_skills_root() -> Path:
     """Resolve the teacher's personal skills root; GUAP_SKILLS_DIR wins."""
     env_dir = os.environ.get(SKILLS_DIR_ENV)
     if env_dir:
-        return Path(env_dir)
+        return Path(env_dir).expanduser()
     return DEFAULT_PERSONAL_DIR
 
 

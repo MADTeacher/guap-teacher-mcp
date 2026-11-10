@@ -102,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    skills_dir = getattr(args, "skills_dir", None)
+    if skills_dir is not None and not skills_dir.strip():
+        parser.error("--skills-dir: путь не может быть пустым")
+
     if args.command == "skills" and not getattr(args, "skills_command", None):
         parser.error("skills: укажите подкоманду (diff)")
 
