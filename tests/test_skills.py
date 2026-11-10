@@ -111,3 +111,11 @@ async def test_register_skill_resources_empty_dir_is_noop(tmp_path):
     server = MCPServer("test-skills-empty")
     assert register_skill_resources(server, tmp_path / "nope", tmp_path / "nope2") == 0
     assert await server.list_resources() == []
+
+
+def test_canonical_skills_document_customization_section():
+    """Every canonical skill must explain where the personal copy lives."""
+    for skill in load_skills(REPO_SKILLS):
+        assert "## Настройка под себя" in skill.markdown, skill.name
+        assert "~/.agents/skills" in skill.markdown, skill.name
+        assert "guap-teacher skills diff" in skill.markdown, skill.name
