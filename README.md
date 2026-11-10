@@ -40,22 +40,23 @@ uvx --refresh --from git+https://github.com/<owner>/guap-teacher-mcp guap-teache
 
 ## Запуск
 
-```bash
-uv run guap-teacher
-```
+MCP-сервер — команда `guap-teacher` без аргументов; в локальном клоне
+репозитория для разработки — `uv run guap-teacher`.
 
-Подключение к MCP-клиенту (stdio), например в конфиг ZCode/Claude/Cursor:
+Сниппет для конфига MCP-клиента (stdio), например ZCode / Codex / Qwen Code:
 
 ```json
 {
   "mcpServers": {
     "guap-teacher": {
-      "command": "uv",
-      "args": ["--directory", "C:\\Users\\MADTeacher\\Documents\\GitHub\\guap-teacher-mcp", "run", "guap-teacher"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/<owner>/guap-teacher-mcp", "guap-teacher"]
     }
   }
 }
 ```
+
+Для локального клона вместо uvx: `uv --directory <путь к клону guap-teacher-mcp> run guap-teacher`.
 
 ## Инструменты
 
@@ -128,6 +129,10 @@ edit_material и create_notice — решение от 2026-11-10).
 - **`guap-review`** — проверка отчётов: выгрузка ожидающих, ревью PDF,
   журнал-протокол с вопросами на понимание, выставление оценок (только с
   явного согласия преподавателя).
+- **`guap-kurs-review`** — проверка курсовых работ (проектов): поиск
+  курсовых отчётов и ревью пояснительной записки (содержание и оформление
+  по правилам ГУАП); балл/статус — через `grade_report`, только с явного
+  согласия преподавателя.
 - **`guap-vedomost`** — заполнение официальной ведомости преподавателя
   баллами с портала по заданным диапазонам. **Выгрузка ведомости на портал
   — только вручную, навык этого не делает никогда.**
