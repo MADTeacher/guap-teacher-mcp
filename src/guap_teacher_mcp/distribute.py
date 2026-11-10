@@ -40,3 +40,32 @@ def seed_personal_skills(canonical_root: Path, personal_root: Path) -> SeedResul
         target.write_text(skill.markdown, encoding="utf-8")
         seeded.append(skill.name)
     return SeedResult(seeded=sorted(seeded), skipped=sorted(skipped))
+
+
+@dataclass(frozen=True)
+class SkillDiff:
+    """Comparison of one canonical skill against the personal copy."""
+
+    name: str
+    status: str  # "identical" | "differs" | "missing"
+
+
+def diff_personal_skills(canonical_root: Path, personal_root: Path) -> list[SkillDiff]:
+    """Compare personal copies with canonical skills, read-only.
+
+    ``differs`` is the normal state of a customized skill; ``missing``
+    means a canonical skill absent from the personal directory (a re-run
+    of ``guap-teacher init`` would install it). No merging is ever done.
+    """
+    canonical = {skill.name: skill.markdown for skill in load_skills(canonical_root)}
+    personal = {skill.name: skill.markdown for skill in load_skills(personal_root)}
+    result: list[SkillDiff] = []
+    for name in sorted(canonical):
+        if name not in personal:
+            status = "missing"
+        elif personal[name] == canonical[name]:
+            status = "identical"
+        else:
+            status = "differs"
+        result.append(SkillDiff(name=name, status=status))
+    return result

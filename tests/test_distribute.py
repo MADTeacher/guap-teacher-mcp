@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from guap_teacher_mcp.distribute import seed_personal_skills
+from guap_teacher_mcp.distribute import diff_personal_skills, seed_personal_skills
 
 
 def _make_skill(root: Path, name: str, markdown: str = "# skill") -> None:
@@ -49,3 +49,28 @@ def test_seed_empty_canonical_is_noop(tmp_path):
     canon.mkdir()
     result = seed_personal_skills(canon, tmp_path / "personal")
     assert result.seeded == [] and result.skipped == []
+
+
+def test_diff_statuses(tmp_path):
+    canon, personal = tmp_path / "canon", tmp_path / "personal"
+    _make_skill(canon, "guap-a", "# same")
+    _make_skill(canon, "guap-b", "# canon b")
+    _make_skill(canon, "guap-c", "# canon c")
+    _make_skill(personal, "guap-a", "# same")   # identical
+    _make_skill(personal, "guap-b", "# my b")   # differs
+    # guap-c intentionally missing from personal
+
+    diffs = diff_personal_skills(canon, personal)
+
+    assert [(d.name, d.status) for d in diffs] == [
+        ("guap-a", "identical"),
+        ("guap-b", "differs"),
+        ("guap-c", "missing"),
+    ]
+
+
+def test_diff_missing_personal_dir_all_missing(tmp_path):
+    canon = tmp_path / "canon"
+    _make_skill(canon, "guap-a", "# a")
+    diffs = diff_personal_skills(canon, tmp_path / "nope")
+    assert [(d.name, d.status) for d in diffs] == [("guap-a", "missing")]
