@@ -1,9 +1,16 @@
-"""Expose repository skills as MCP resources (Skills over MCP).
+"""Expose agent skills as MCP resources (Skills over MCP).
 
-Skills live as ``skills/<name>/SKILL.md`` in the repository root (one
-subdirectory per skill). The loader is a pure function so it can be tested
-offline; ``register_skill_resources`` wires the loaded skills into an
-MCPServer instance as ``skill://`` resources:
+Skills are resolved from two roots, each laid out as
+``<root>/<name>/SKILL.md``. The canonical root ships with the package
+(packaged ``src/guap_teacher_mcp/skills`` data, falling back to the
+``<repo>/skills`` layout of a repo checkout); the personal root defaults
+to ``~/.agents/skills`` (``GUAP_SKILLS_DIR`` overrides the personal root
+only). Canonical names define the namespace: a personal skill with the
+same name replaces the canonical one whole (no merging), and personal
+skills outside the canonical namespace are ignored. Resolution
+(``resolve_skills``) and loading (``load_skills``) are pure functions so
+they can be tested offline; ``register_skill_resources`` wires the
+resolved skills into an MCPServer instance as ``skill://`` resources:
 
 - ``skill://index`` — catalog of the available skills;
 - ``skill://<name>`` — the SKILL.md content of the skill (text/markdown).
@@ -34,13 +41,39 @@ class Skill:
     markdown: str
 
 
-def skills_root() -> Path:
-    """Resolve the skills directory; GUAP_SKILLS_DIR env override wins."""
+DEFAULT_PERSONAL_DIR = Path.home() / ".agents" / "skills"
+
+
+def canonical_skills_root() -> Path:
+    """Resolve the canonical skills root.
+
+    Preferred: skills shipped inside the package (wheel install via
+    pyproject force-include). Fallback: the repo checkout layout
+    (<repo>/skills) so that `uv run` from the source tree keeps working.
+    """
+    packaged = Path(__file__).resolve().parent / "skills"
+    if packaged.is_dir():
+        return packaged
+    # <repo>/src/guap_teacher_mcp/skills.py -> <repo>/skills
+    return Path(__file__).resolve().parents[2] / "skills"
+
+
+def personal_skills_root() -> Path:
+    """Resolve the teacher's personal skills root; GUAP_SKILLS_DIR wins."""
     env_dir = os.environ.get(SKILLS_DIR_ENV)
     if env_dir:
         return Path(env_dir)
-    # <repo>/src/guap_teacher_mcp/skills.py -> <repo>/skills
-    return Path(__file__).resolve().parents[2] / "skills"
+    return DEFAULT_PERSONAL_DIR
+
+
+def resolve_skills(canonical_root: Path, personal_root: Path) -> list[Skill]:
+    """Two-root resolution: canonical names define the namespace, a
+    personal copy overrides by name (whole-skill, no merging); personal
+    skills whose names are not in the canonical set are ignored.
+    """
+    canonical = {skill.name: skill for skill in load_skills(canonical_root)}
+    personal = {skill.name: skill for skill in load_skills(personal_root)}
+    return [personal.get(name, skill) for name, skill in sorted(canonical.items())]
 
 
 def load_skills(root: Path) -> list[Skill]:
@@ -57,13 +90,12 @@ def load_skills(root: Path) -> list[Skill]:
     ]
 
 
-def register_skill_resources(server: MCPServer, root: Path) -> int:
-    """Register the skills of ``root`` on ``server`` as skill:// resources.
-
-    Returns the number of registered skills (0 = nothing registered, e.g.
-    the directory does not exist).
-    """
-    skills = load_skills(root)
+def register_skill_resources(
+    server: MCPServer, canonical_root: Path, personal_root: Path
+) -> int:
+    """Register resolved skills (personal overrides canonical) as skill://
+    resources. Returns the number of registered skills."""
+    skills = resolve_skills(canonical_root, personal_root)
     if not skills:
         return 0
     names = [skill.name for skill in skills]

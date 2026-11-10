@@ -34,7 +34,7 @@ from . import discover
 from . import pages
 from .auth import authenticate_with_browser, load_cookie_string, session_path
 from .client import GuapClient, NotAuthenticatedError
-from .skills import register_skill_resources, skills_root
+from guap_teacher_mcp import skills
 
 mcp = MCPServer("guap-teacher")
 
@@ -1404,9 +1404,12 @@ def main() -> None:
     mcp.run()
 
 
-# Expose repository skills (skills/<name>/SKILL.md) as skill:// resources —
-# Skills over MCP. No-op when the directory is absent (e.g. wheel installs).
-register_skill_resources(mcp, skills_root())
+# Expose skills as skill:// resources — Skills over MCP. Canonical names
+# (packaged data, or <repo>/skills in a checkout) with personal overrides
+# from ~/.agents/skills (GUAP_SKILLS_DIR).
+skills.register_skill_resources(
+    mcp, skills.canonical_skills_root(), skills.personal_skills_root()
+)
 
 
 if __name__ == "__main__":
