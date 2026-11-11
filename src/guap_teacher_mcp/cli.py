@@ -1,10 +1,11 @@
 """Console entry point for ``guap-teacher``.
 
-Subcommands: ``init`` (seed personal skill copies), ``skills diff``
-(compare them with the canonical ones), ``alerts`` (read the local
-prompt-injection journal), ``protocol`` (review journal passthrough).
-Without a subcommand the MCP server starts on stdio exactly as before,
-so existing MCP client configs keep working.
+Subcommands: ``init`` (seed personal skill copies; ``--claude`` also
+seeds Claude Code's skill directory and prints its MCP hookup),
+``skills diff`` (compare them with the canonical ones), ``alerts``
+(read the local prompt-injection journal), ``protocol`` (review journal
+passthrough). Without a subcommand the MCP server starts on stdio exactly
+as before, so existing MCP client configs keep working.
 """
 
 from __future__ import annotations
@@ -51,6 +52,14 @@ DeepSeek Harness (.dsh/profiles/<профиль>/cordis.patch.yml):
   uv --directory <путь к guap-teacher-mcp> run guap-teacher
 """
 
+CLAUDE_SNIPPET = f"""\
+Claude Code (команда в терминале, в любом проекте или с --scope user):
+  claude mcp add guap-teacher -- uvx --from {PACKAGE_SOURCE} guap-teacher
+
+  Локальный clone вместо uvx:
+  claude mcp add guap-teacher -- uv --directory <путь к guap-teacher-mcp> run guap-teacher
+"""
+
 _DIFF_HINTS = {
     "missing": " — нет в личном каталоге; guap-teacher init доустановит",
     "differs": " — личная копия отличается от канона (это нормально)",
@@ -60,6 +69,10 @@ _DIFF_HINTS = {
 
 def _personal_root(value: str | None) -> Path:
     return Path(value) if value else skills.personal_skills_root()
+
+
+def _claude_root(value: str | None) -> Path:
+    return Path(value) if value else skills.claude_skills_root()
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -74,6 +87,16 @@ def _cmd_init(args: argparse.Namespace) -> int:
     if not result.seeded and not result.skipped:
         print("Канонические навыки не найдены.")
     print()
+    if args.claude:
+        claude_root = _claude_root(args.claude_skills_dir)
+        claude_result = distribute.seed_personal_skills(canonical_root, claude_root)
+        print(f"Каталог навыков Claude Code: {claude_root}")
+        if claude_result.seeded:
+            print("Установлены: " + ", ".join(claude_result.seeded))
+        if claude_result.skipped:
+            print("Пропущены (уже существуют, не перезаписаны): " + ", ".join(claude_result.skipped))
+        print()
+        print(CLAUDE_SNIPPET)
     print(MCP_SNIPPETS)
     return 0
 
@@ -139,6 +162,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="каталог личных навыков (по умолчанию GUAP_SKILLS_DIR или ~/.agents/skills)",
     )
+    p_init.add_argument(
+        "--claude",
+        action="store_true",
+        help="также разложить навыки в каталог Claude Code и напечатать его команду подключения MCP",
+    )
+    p_init.add_argument(
+        "--claude-skills-dir",
+        default=None,
+        help="каталог навыков Claude Code (по умолчанию GUAP_CLAUDE_SKILLS_DIR или ~/.claude/skills)",
+    )
     p_init.set_defaults(func=_cmd_init)
 
     p_skills = sub.add_parser("skills", help="операции с навыками")
@@ -184,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     skills_dir = getattr(args, "skills_dir", None)
     if skills_dir is not None and not skills_dir.strip():
         parser.error("--skills-dir: путь не может быть пустым")
+
+    claude_skills_dir = getattr(args, "claude_skills_dir", None)
+    if claude_skills_dir is not None and not claude_skills_dir.strip():
+        parser.error("--claude-skills-dir: путь не может быть пустым")
 
     if args.command == "skills" and not getattr(args, "skills_command", None):
         parser.error("skills: укажите подкоманду (diff)")

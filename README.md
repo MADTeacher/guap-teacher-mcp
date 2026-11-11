@@ -28,7 +28,8 @@ Read-инструменты только читают данные портал�
   на Linux/macOS;
 - git — uvx клонирует репозиторий через него;
 - агентский харнесс, читающий `~/.agents/skills`: ZCode, Codex, Qwen Code
-  и DeepSeek Harness. Claude Code не поддерживается;
+  и DeepSeek Harness. Claude Code поддерживается отдельным флагом `init
+  --claude` (навыки — в `~/.claude/skills`);
 - Chromium для входа.
 
 Порядок простой: сначала браузер, потом настройка.
@@ -46,6 +47,22 @@ uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 `init` раскладывает канонические навыки в `~/.agents/skills/guap-*`
 (существующие файлы не перезаписывает) и печатает сниппеты MCP-конфига
 для ZCode, Codex, Qwen Code и DeepSeek Harness. Вставьте подходящий в настройки харнесса.
+
+Для Claude Code добавьте `--claude`:
+
+```bash
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init --claude
+```
+
+Тогда навыки дополнительно разложатся в `~/.claude/skills/guap-*`, и
+команда напечатает подключение MCP одной строкой:
+
+```bash
+claude mcp add guap-teacher -- uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher
+```
+
+После этого навыки доступны Claude Code нативно, инструменты — после
+перезапуска сессии.
 
 Если не хочется повторять шаги руками, попросите своего агента:
 
@@ -90,6 +107,7 @@ guap-teacher → Install**. Плагин подключает MCP-сервер; 
 
 Другим харнессам (Codex, Qwen Code, DeepSeek Harness, любому с `~/.agents/skills`) плагин
 не нужен: `init` печатает сниппеты, а навыки подхватятся из каталога сами.
+Для Claude Code используйте `init --claude` (см. выше).
 
 ## Запуск
 
@@ -277,7 +295,9 @@ Codex и Qwen Code используют ключ `mcpServers` (ZCode поним�
 умолчанию, переопределяется `GUAP_SKILLS_DIR`). ZCode, Codex, Qwen Code и
 DeepSeek Harness читают его нативно; ресурсы `skill://` отдают те же навыки любому клиенту
 с `resources/list` и `resources/read`. При совпадении имени побеждает
-личная копия. Канонические навыки едут внутри пакета, сравнить с ними
+личная копия. Claude Code читает `~/.claude/skills/<имя>/`
+(переопределяется `GUAP_CLAUDE_SKILLS_DIR`), которые кладёт `init
+--claude`. Канонические навыки едут внутри пакета, сравнить с ними
 личные — `guap-teacher skills diff`. Стабы `.zcode/skills/` нужны только
 для разработки в самом репозитории.
 

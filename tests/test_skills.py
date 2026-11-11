@@ -7,6 +7,7 @@ from mcp.server.mcpserver import MCPServer
 
 from guap_teacher_mcp.skills import (
     canonical_skills_root,
+    claude_skills_root,
     load_skills,
     personal_skills_root,
     register_skill_resources,
@@ -90,6 +91,16 @@ def test_personal_skills_root_expands_user(monkeypatch, tmp_path):
 def test_personal_skills_root_default_is_agents_dir(monkeypatch):
     monkeypatch.delenv("GUAP_SKILLS_DIR", raising=False)
     assert personal_skills_root() == Path.home() / ".agents" / "skills"
+
+
+def test_claude_skills_root_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("GUAP_CLAUDE_SKILLS_DIR", str(tmp_path))
+    assert claude_skills_root() == tmp_path
+
+
+def test_claude_skills_root_default_is_claude_dir(monkeypatch):
+    monkeypatch.delenv("GUAP_CLAUDE_SKILLS_DIR", raising=False)
+    assert claude_skills_root() == Path.home() / ".claude" / "skills"
 
 
 @pytest.mark.asyncio

@@ -31,6 +31,7 @@ from mcp.server.mcpserver import MCPServer
 
 SKILL_FILE = "SKILL.md"
 SKILLS_DIR_ENV = "GUAP_SKILLS_DIR"
+CLAUDE_SKILLS_DIR_ENV = "GUAP_CLAUDE_SKILLS_DIR"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class Skill:
 
 
 DEFAULT_PERSONAL_DIR = Path.home() / ".agents" / "skills"
+DEFAULT_CLAUDE_DIR = Path.home() / ".claude" / "skills"
 
 
 def canonical_skills_root() -> Path:
@@ -64,6 +66,14 @@ def personal_skills_root() -> Path:
     if env_dir:
         return Path(env_dir).expanduser()
     return DEFAULT_PERSONAL_DIR
+
+
+def claude_skills_root() -> Path:
+    """Resolve Claude Code's personal skills root; GUAP_CLAUDE_SKILLS_DIR wins."""
+    env_dir = os.environ.get(CLAUDE_SKILLS_DIR_ENV)
+    if env_dir:
+        return Path(env_dir).expanduser()
+    return DEFAULT_CLAUDE_DIR
 
 
 def resolve_skills(canonical_root: Path, personal_root: Path) -> list[Skill]:

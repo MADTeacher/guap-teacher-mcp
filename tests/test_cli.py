@@ -44,6 +44,39 @@ def test_init_keeps_existing_personal_copy(tmp_path, capsys, monkeypatch):
     assert "не перезаписаны" in capsys.readouterr().out
 
 
+def test_init_claude_seeds_and_prints_claude_snippet(tmp_path, capsys, monkeypatch):
+    canon, personal, claude = tmp_path / "canon", tmp_path / "personal", tmp_path / "claude"
+    _make_skill(canon, "guap-review", "# Review canon")
+    monkeypatch.setattr(skills_mod, "canonical_skills_root", lambda: canon)
+    monkeypatch.setattr(skills_mod, "claude_skills_root", lambda: claude)
+
+    rc = main(
+        ["init", "--claude", "--skills-dir", str(personal), "--claude-skills-dir", str(claude)]
+    )
+
+    assert rc == 0
+    # Both roots seeded with the canonical skill.
+    assert (personal / "guap-review" / "SKILL.md").read_text(encoding="utf-8") == "# Review canon"
+    assert (claude / "guap-review" / "SKILL.md").read_text(encoding="utf-8") == "# Review canon"
+    out = capsys.readouterr().out
+    assert "claude mcp add guap-teacher" in out   # Claude Code hookup printed
+    assert "mcpServers" in out                     # base snippets still printed
+    assert str(claude) in out
+
+
+def test_init_without_claude_does_not_touch_claude_dir(tmp_path, capsys, monkeypatch):
+    canon, personal, claude = tmp_path / "canon", tmp_path / "personal", tmp_path / "claude"
+    _make_skill(canon, "guap-review", "# Review canon")
+    monkeypatch.setattr(skills_mod, "canonical_skills_root", lambda: canon)
+    monkeypatch.setattr(skills_mod, "claude_skills_root", lambda: claude)
+
+    rc = main(["init", "--skills-dir", str(personal)])
+
+    assert rc == 0
+    assert not (claude / "guap-review" / "SKILL.md").exists()
+    assert "claude mcp add" not in capsys.readouterr().out
+
+
 def test_skills_diff_prints_statuses(tmp_path, capsys, monkeypatch):
     canon, personal = tmp_path / "canon", tmp_path / "personal"
     _make_skill(canon, "guap-a", "# same")
@@ -65,6 +98,12 @@ def test_skills_diff_prints_statuses(tmp_path, capsys, monkeypatch):
 def test_empty_skills_dir_is_rejected(tmp_path):
     with pytest.raises(SystemExit) as exc:
         main(["init", "--skills-dir", ""])
+    assert exc.value.code == 2
+
+
+def test_empty_claude_skills_dir_is_rejected(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        main(["init", "--claude", "--claude-skills-dir", ""])
     assert exc.value.code == 2
 
 

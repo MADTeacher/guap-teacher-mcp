@@ -22,9 +22,11 @@ uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 
 Команда сеет канонические навыки `guap-*` в `~/.agents/skills/`
 (существующие файлы не перезаписывает), печатает сводку и сниппеты
-MCP-конфига для ZCode / Codex / Qwen Code. После этого навыки доступны
-агенту автоматически; MCP-инструменты (`check_auth_status`,
-`list_reports`, …) — после перезапуска сессии ZCode.
+MCP-конфига для ZCode / Codex / Qwen Code / DeepSeek Harness. Для
+Claude Code — флаг `init --claude`: он дополнительно кладёт навыки в
+`~/.claude/skills/` и печатает команду `claude mcp add`. После этого
+навыки доступны агенту автоматически; MCP-инструменты
+(`check_auth_status`, `list_reports`, …) — после перезапуска сессии ZCode.
 
 Дальше преподаватель настраивает правила под себя разговором:
 «в моих отчётах титульный лист не проверяй, зато ругай за отсутствие

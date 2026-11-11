@@ -100,7 +100,7 @@ DeepSeek Harness. Именно он
 - [uv](https://docs.astral.sh/uv/) — `winget install astral-sh.uv` на Windows
   или `curl -LsSf https://astral.sh/uv/install.sh | sh` на Linux/macOS;
 - git — uvx клонирует репозиторий через него;
-- харнесс: ZCode, Codex, Qwen Code или DeepSeek Harness (Claude Code не поддерживается);
+- харнесс: ZCode, Codex, Qwen Code или DeepSeek Harness (Claude Code — отдельным флагом `init --claude`);
 - Chromium для входа (скачается сам при первом `authenticate`).
 
 Дальше — одна команда:
@@ -112,6 +112,19 @@ uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 `init` делает две вещи. Во-первых, раскладывает канонические навыки в
 `~/.agents/skills/guap-*` — существующие файлы не перезаписывает. Во-вторых,
 печатает готовые сниппеты MCP-конфига под ваш харнесс. Вставьте подходящий.
+
+Для Claude Code — флаг `--claude`:
+
+```bash
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init --claude
+```
+
+Он дополнительно раскладывает навыки в `~/.claude/skills/guap-*` и печатает
+команду подключения MCP:
+
+```bash
+claude mcp add guap-teacher -- uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher
+```
 
 Для ZCode — ключ `mcp.servers` в `~/.zcode/cli/config.json`:
 
@@ -236,9 +249,11 @@ uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-tea
 | `GUAP_SESSION_PATH` | `~/.guap-teacher-mcp/session.json` | файл сессии (секрет) |
 | `GUAP_DOWNLOAD_DIR` | `<cwd>/.guap_mcp_tmp` | куда скачиваются файлы работ |
 | `GUAP_SKILLS_DIR` | `~/.agents/skills` | каталог личных копий навыков |
+| `GUAP_CLAUDE_SKILLS_DIR` | `~/.claude/skills` | каталог навыков Claude Code |
 
 Два пути поставки навыков стоит различать. Харнесс читает их нативно с диска
-(`~/.agents/skills`). Параллельно сервер отдаёт те же навыки как read-only
+(`~/.agents/skills`; Claude Code — `~/.claude/skills` через `init --claude`).
+Параллельно сервер отдаёт те же навыки как read-only
 ресурсы `skill://index` и `skill://<имя>` — их заберёт любой MCP-клиент,
 который умеет `resources/list` и `resources/read`. Для ZCode, Codex, Qwen Code
 и DeepSeek Harness достаточно диска.
