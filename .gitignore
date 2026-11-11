@@ -8,6 +8,7 @@ build/
 
 # Tooling caches
 .pytest_cache/
+pytest-of-*/
 .ruff_cache/
 .coverage
 htmlcov/
