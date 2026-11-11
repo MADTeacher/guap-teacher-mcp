@@ -23,7 +23,7 @@ uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 Codex / Qwen Code — вставьте подходящий в конфиг вашего харнесса.
 `guap-teacher` без аргументов — запуск MCP-сервера (stdio).
 
-Проще всего попросить своего агента — скопируйте промпт:
+Проще всего попросить своего агента:
 
 ```text
 поставь guap-teacher отсюда https://github.com/MADTeacher/guap-teacher-mcp, подключи MCP и настрой навыки под мои правила приёмки работ
