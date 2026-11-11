@@ -38,11 +38,14 @@ src/guap_teacher_mcp/
   guard.py     # защита от промпт-инъекций в студенческих данных: правила
                #   (regex RU/EN + unicode-гигиена) и журнал алертов
                #   security_log.jsonl (чистые функции, офлайн)
+  protocol.py  # журнал протокола ревью (.xlsx): чистые функции + CLI
+               #   (доступен как `guap-teacher protocol` — работает
+               #   через uvx из любого каталога, без клона репозитория)
   skills.py    # загрузка навыков из skills/ и регистрация skill:// ресурсов
                #   (два корня: личный ~/.agents/skills побеждает канон)
   distribute.py # посев/сравнение личных копий навыков (~/.agents/skills)
-  cli.py        # подкоманды guap-teacher: init, skills diff, alerts
-               #   (без аргументов — сервер)
+  cli.py        # подкоманды guap-teacher: init, skills diff, alerts,
+               #   protocol (проброс в protocol.py; без аргументов — сервер)
   server.py    # MCPServer-инструменты (stdio) + skill:// ресурсы
 skills/        # канонические агентские навыки: skills/<имя>/SKILL.md
 .zcode/skills/ # стабы для локального обнаружения навыков в ZCode

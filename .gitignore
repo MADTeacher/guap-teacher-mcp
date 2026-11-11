@@ -24,6 +24,7 @@ session.json
 .review_tmp/
 .scratch/
 .tmp_pkgtest/
+.tmp_protocol/
 *.orig
 *.rej
 

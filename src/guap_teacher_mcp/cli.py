@@ -2,8 +2,9 @@
 
 Subcommands: ``init`` (seed personal skill copies), ``skills diff``
 (compare them with the canonical ones), ``alerts`` (read the local
-prompt-injection journal). Without a subcommand the MCP server starts on
-stdio exactly as before, so existing MCP client configs keep working.
+prompt-injection journal), ``protocol`` (review journal passthrough).
+Without a subcommand the MCP server starts on stdio exactly as before,
+so existing MCP client configs keep working.
 """
 
 from __future__ import annotations
@@ -101,6 +102,13 @@ def _cmd_alerts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_protocol(args: argparse.Namespace) -> int:
+    # Lazy import: protocol pulls openpyxl, light subcommands stay light.
+    from guap_teacher_mcp import protocol
+
+    return protocol.main(list(args.args))
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse CLI args; without a subcommand start the MCP server (stdio)."""
     parser = argparse.ArgumentParser(
@@ -147,6 +155,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_alerts.add_argument("--json", action="store_true", help="вывести сырой JSON")
     p_alerts.set_defaults(func=_cmd_alerts)
+
+    p_protocol = sub.add_parser(
+        "protocol",
+        help="журнал протокола ревью (.xlsx): append / pending / posted",
+    )
+    # REMAINDER: the whole tail goes to protocol.main() verbatim, so its
+    # argparse stays the single source of truth for the journal CLI.
+    p_protocol.add_argument("args", nargs=argparse.REMAINDER)
+    p_protocol.set_defaults(func=_cmd_protocol)
 
     args = parser.parse_args(argv)
 

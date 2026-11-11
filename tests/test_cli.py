@@ -1,5 +1,6 @@
-"""Offline tests for the guap-teacher CLI (init / skills diff)."""
+"""Offline tests for the guap-teacher CLI (init / skills diff / protocol)."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -65,3 +66,38 @@ def test_empty_skills_dir_is_rejected(tmp_path):
     with pytest.raises(SystemExit) as exc:
         main(["init", "--skills-dir", ""])
     assert exc.value.code == 2
+
+
+def test_protocol_subcommand_roundtrip(tmp_path, capsys):
+    xlsx = tmp_path / "Протокол.xlsx"
+    payload = tmp_path / "records.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "date": "2026-11-11",
+                "subject": "Основы разработки на Dart",
+                "group": "4613МК",
+                "student": "Иванов И. И.",
+                "task": "Практическая №5",
+                "report_id": 101,
+                "max_mark": 10,
+                "proposed_mark": 8,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["protocol", "append", str(xlsx), str(payload)]) == 0
+    assert "appended 1 row(s)" in capsys.readouterr().out
+    assert xlsx.exists()
+
+    assert main(["protocol", "pending", str(xlsx)]) == 0
+    pending = json.loads(capsys.readouterr().out)
+    assert [r["report_id"] for r in pending] == [101]
+
+    assert main(["protocol", "posted", str(xlsx), "101", "--mark", "8"]) == 0
+    posted = json.loads(capsys.readouterr().out)
+    assert posted["portal_status"].startswith("выставлен")
+
+    assert main(["protocol", "pending", str(xlsx)]) == 0
+    assert json.loads(capsys.readouterr().out) == []

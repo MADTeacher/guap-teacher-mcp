@@ -148,8 +148,11 @@ description: Проверка студенческих отчётов и выс�
 Рендер (список вопросов нумеруется автоматически):
 
 ```
-uv run python -m guap_teacher_mcp.protocol append <Протокол.xlsx> <records.json>
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher protocol append <Протокол.xlsx> <records.json>
 ```
+
+(команда работает из любого каталога; в клоне репозитория guap-teacher-mcp
+то же самое короче — `uv run guap-teacher protocol append ...`)
 
 После рендера показать преподавателю сводную таблицу (студент — претензии —
 балл — вопросы кратко) и путь к файлу; файл можно открыть в панели таблиц
@@ -161,7 +164,7 @@ uv run python -m guap_teacher_mcp.protocol append <Протокол.xlsx> <recor
 Журнал самодостаточен: в строках есть `report_id`, дисциплина, задание,
 оба балла и статус отправки. В новой сессии достаточно самого файла:
 
-1. `uv run python -m guap_teacher_mcp.protocol pending <Протокол.xlsx>` —
+1. `uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher protocol pending <Протокол.xlsx>` —
    строки, чей балл ещё не выставлен на портал (при пересдачах побеждает
    последняя проверка; итоговый балл важнее предварительного).
 2. Показать преподавателю список (report_id — студент — балл) и получить
@@ -171,8 +174,9 @@ uv run python -m guap_teacher_mcp.protocol append <Протокол.xlsx> <recor
    `grade_report(report_id=..., mark=..., status="принят", comment=...)`
    (правила комментария — раздел 7).
 4. После каждой успешной отправки (сверить `after.markPoint`) пометить
-   строку: `uv run python -m guap_teacher_mcp.protocol posted
-   <Протокол.xlsx> <report_id> --mark <итоговый балл>`.
+   строку: `uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp
+   guap-teacher protocol posted <Протокол.xlsx> <report_id>
+   --mark <итоговый балл>`.
 
 ## 6. Шкала оценивания (ориентир; максимум M из карточки задания)
 

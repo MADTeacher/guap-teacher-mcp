@@ -17,7 +17,7 @@
 Выполни от имени преподавателя:
 
 ```
-uv --directory C:/Users/MADTeacher/Documents/GitHub/guap-teacher-mcp run guap-teacher init
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 ```
 
 Команда сеет канонические навыки `guap-*` в `~/.agents/skills/`
@@ -63,4 +63,6 @@ MCP-конфига для ZCode / Codex / Qwen Code. После этого на�
 - Обновление движка: `uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher --help`;
   для разработки — `git pull` в клоне.
 - Вход в портал — всегда руками преподавателя через SSO
-  (`authenticate`); креды нигде не хранятся.
+  (`authenticate`); креды нигде не хранятся. Chromium для входа при
+  первом `authenticate` скачается сам (1–2 минуты); поставить заранее:
+  `uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp playwright install chromium`.
