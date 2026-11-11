@@ -904,8 +904,12 @@ GROUP_INFO_RE = re.compile(r"^/inside/groups/(\d+)/info$")
 def parse_subject_groups(html: str, subject_id: int) -> list[dict]:
     """Groups of a subject card with their grade-sheet («Печать») links.
 
-    The card links each group twice: /inside/groups/{gid}/info (label) and
-    /inside/groups/{subject_id}/{gid} (the "Список группы" grade sheet).
+    A classic card links each group twice: /inside/groups/{gid}/info
+    (label) and /inside/groups/{subject_id}/{gid} (the "Список группы"
+    grade sheet). Some cards (e.g. ИТ-модули) have no grade-sheet links —
+    only /inside/groups/{gid}/info in the «Ведомости» tables and the
+    h5 «Группы» line; such groups are taken from the info link and their
+    grade_sheet_url is None.
     """
     soup = _soup(html)
     names: dict[int, str] = {}
@@ -919,20 +923,32 @@ def parse_subject_groups(html: str, subject_id: int) -> list[dict]:
     print_re = re.compile(rf"^/inside/groups/{subject_id}/(\d+)$")
     groups: list[dict] = []
     seen: set[int] = set()
+
+    def _append(group_id: int, grade_sheet_url: Optional[str]) -> None:
+        if group_id in seen:
+            return
+        seen.add(group_id)
+        groups.append(
+            {
+                "group_id": group_id,
+                "name": names.get(group_id),
+                "grade_sheet_url": grade_sheet_url,
+            }
+        )
+
+    # Grade-sheet links win: on classic cards they carry the same gid
+    # as the info link next to it.
     for anchor in soup.find_all("a", href=True):
-        print_match = print_re.match(anchor["href"].split("?", 1)[0])
+        href = anchor["href"].split("?", 1)[0]
+        print_match = print_re.match(href)
         if print_match:
-            group_id = int(print_match.group(1))
-            if group_id in seen:
-                continue
-            seen.add(group_id)
-            groups.append(
-                {
-                    "group_id": group_id,
-                    "name": names.get(group_id),
-                    "grade_sheet_url": anchor["href"].split("?", 1)[0],
-                }
-            )
+            _append(int(print_match.group(1)), href)
+    # Fallback for cards without grade-sheet links (e.g. ИТ-модули):
+    # the info link alone identifies the group.
+    for anchor in soup.find_all("a", href=True):
+        info_match = GROUP_INFO_RE.match(anchor["href"].split("?", 1)[0])
+        if info_match:
+            _append(int(info_match.group(1)), None)
     return sorted(groups, key=lambda g: g["name"] or "")
 
 

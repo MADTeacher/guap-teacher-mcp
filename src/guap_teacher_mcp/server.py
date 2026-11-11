@@ -1146,8 +1146,11 @@ async def list_subjects(
 async def get_subject(subject_id: int) -> str:
     """Карточка дисциплины: направление, кафедра, контроль, часы, группы (только чтение).
 
-    GET /inside/subjects/{id}. В groups — группы дисциплины с id и ссылками
-    на их ведомости («Список группы») — используйте их в get_group_grades.
+    GET /inside/subjects/{id}. В groups — группы дисциплины с id и именами;
+    используйте их id в get_group_grades. grade_sheet_url (ссылка на
+    ведомость «Список группы») есть не на всех карточках — на некоторых
+    (например, ИТ-модули) группы видны только по info-ссылкам, и тогда
+    grade_sheet_url равен null.
     """
     with _authed_client() as client:
         response = client.get(f"/inside/subjects/{subject_id}")

@@ -1018,3 +1018,114 @@ def test_parse_notices_default_semester() -> None:
     """
     # the default semester feeds create_notice's semester fallback
     assert parse_notices(html)["default_semester"] == "28"
+
+
+# Minimal synthetic subject cards for parse_subject_groups: no real
+# student names or card numbers, only the link layout of the portal.
+SUBJECT_CARD_CLASSIC_HTML = """
+<html><body>
+<h3 class="page__title">Классическая дисциплина</h3>
+<h5>Группы: <a target="_blank" class="link" href="/inside/groups/7432/info">4514</a>,
+    <a target="_blank" class="link" href="/inside/groups/7433/info?referer=card">4515</a></h5>
+<h4>Ведомости</h4>
+<table class="table table-bordered table-striped">
+  <tr><th>Группа</th><th>Действия</th></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7432/info">4514</a></td>
+      <td><a target="_blank" href="/inside/groups/3419299/7432">Печать</a></td></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7433/info">4515</a></td>
+      <td><a target="_blank" href="/inside/groups/3419299/7433">Печать</a></td></tr>
+</table>
+</body></html>
+"""
+
+# ИТ-модуль cards have no grade-sheet («Печать») links at all: the
+# «Ведомости» tables and the h5 «Группы» line carry only info links.
+SUBJECT_CARD_IT_MODULE_HTML = """
+<html><body>
+<h3 class="page__title">ИТ-модуль &laquo;Программирование на языке Python&raquo;</h3>
+<h5>Группы: <a target="_blank" class="link" href="/inside/groups/7071/info">2436</a> (12 чел.),
+    <a target="_blank" class="link" href="/inside/groups/7070/info">2435</a> (15 чел.)</h5>
+<h4>Ведомости</h4>
+<table class="table table-bordered table-striped">
+  <tr><th>Группа</th><th>Тип</th></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7070/info">2435</a></td><td>Зачёт</td></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7071/info">2436</a></td><td>Зачёт</td></tr>
+</table>
+</body></html>
+"""
+
+# A card may mix both layouts: one group with a grade sheet, others
+# visible only through their info links.
+SUBJECT_CARD_MIXED_HTML = """
+<html><body>
+<h3 class="page__title">Смешанная карточка</h3>
+<h5>Группы: <a target="_blank" class="link" href="/inside/groups/7275/info">3426</a>,
+    <a target="_blank" class="link" href="/inside/groups/7277/info">3428</a>,
+    <a target="_blank" class="link" href="/inside/groups/7278/info">3429</a></h5>
+<h4>Ведомости</h4>
+<table class="table table-bordered table-striped">
+  <tr><th>Группа</th><th>Действия</th></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7275/info">3426</a></td>
+      <td><a target="_blank" href="/inside/groups/3432843/7275">Печать</a></td></tr>
+</table>
+<table class="table table-bordered table-striped">
+  <tr><th>Группа</th><th>Тип</th></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7277/info">3428</a></td><td>Зачёт</td></tr>
+  <tr><td><a target="_blank" href="/inside/groups/7278/info">3429</a></td><td>Зачёт</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_parse_subject_groups_classic_print_links() -> None:
+    from guap_teacher_mcp.pages import parse_subject_groups
+
+    groups = parse_subject_groups(SUBJECT_CARD_CLASSIC_HTML, 3419299)
+    assert groups == [
+        {
+            "group_id": 7432,
+            "name": "4514",
+            "grade_sheet_url": "/inside/groups/3419299/7432",
+        },
+        {
+            "group_id": 7433,
+            "name": "4515",
+            "grade_sheet_url": "/inside/groups/3419299/7433",
+        },
+    ]
+
+
+def test_parse_subject_groups_it_module_info_links_only() -> None:
+    from guap_teacher_mcp.pages import parse_subject_groups
+
+    groups = parse_subject_groups(SUBJECT_CARD_IT_MODULE_HTML, 3432756)
+    # no «Печать» links on the card: groups come from the info links,
+    # grade_sheet_url is None, entries deduplicated by gid and sorted
+    assert groups == [
+        {"group_id": 7070, "name": "2435", "grade_sheet_url": None},
+        {"group_id": 7071, "name": "2436", "grade_sheet_url": None},
+    ]
+
+
+def test_parse_subject_groups_mixed_markup() -> None:
+    from guap_teacher_mcp.pages import parse_subject_groups
+
+    groups = parse_subject_groups(SUBJECT_CARD_MIXED_HTML, 3432843)
+    # the group with a grade-sheet link keeps it; info-only groups get
+    # grade_sheet_url=None; the gid seen in both the h5 line and the
+    # table yields a single entry
+    assert groups == [
+        {
+            "group_id": 7275,
+            "name": "3426",
+            "grade_sheet_url": "/inside/groups/3432843/7275",
+        },
+        {"group_id": 7277, "name": "3428", "grade_sheet_url": None},
+        {"group_id": 7278, "name": "3429", "grade_sheet_url": None},
+    ]
+
+
+def test_parse_subject_groups_no_groups() -> None:
+    from guap_teacher_mcp.pages import parse_subject_groups
+
+    assert parse_subject_groups(CARD_HTML, 3419299) == []
