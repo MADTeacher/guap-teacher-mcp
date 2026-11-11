@@ -11,7 +11,9 @@ MCP-сервер для автоматизации работы преподав
 
 ## Установка (преподавателю)
 
-Понадобятся [uv](https://docs.astral.sh/uv/) и агент-харнесс, читающий
+Понадобятся [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`
+на Windows, `curl -LsSf https://astral.sh/uv/install.sh | sh` на Linux/macOS),
+git (uvx клонирует репозиторий через него) и агент-харнесс, читающий
 `~/.agents/skills` (ZCode, Codex, Qwen Code; Claude Code не поддерживается).
 
 ```bash
@@ -61,7 +63,8 @@ guap-teacher → Install**. Плагин подключает MCP-сервер; 
 MCP-сервер — команда `guap-teacher` без аргументов; в локальном клоне
 репозитория для разработки — `uv run guap-teacher`.
 
-Сниппет для конфига MCP-клиента (stdio), например ZCode / Codex / Qwen Code:
+Сниппет для конфига MCP-клиента (stdio) — Codex / Qwen Code (ключ
+`mcpServers`; ZCode тоже понимает его, но только из `~/.agents/mcp.json`):
 
 ```json
 {
@@ -69,6 +72,25 @@ MCP-сервер — команда `guap-teacher` без аргументов; 
     "guap-teacher": {
       "command": "uvx",
       "args": ["--from", "git+https://github.com/MADTeacher/guap-teacher-mcp", "guap-teacher"]
+    }
+  }
+}
+```
+
+Нативный формат ZCode — ключ `mcp.servers` в `~/.zcode/cli/config.json`
+(пользовательский скоуп) или `<repo>/.zcode/config.json` (скоуп проекта);
+фрагмент добавляется к остальным ключам конфига:
+
+```json
+"mcp": {
+  "servers": {
+    "guap-teacher": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/MADTeacher/guap-teacher-mcp",
+        "guap-teacher"
+      ]
     }
   }
 }

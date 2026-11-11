@@ -21,8 +21,8 @@ PACKAGE_SOURCE = "git+https://github.com/MADTeacher/guap-teacher-mcp"
 MCP_SNIPPETS = f"""\
 Подключение MCP-сервера (stdio) в вашем харнессе:
 
-ZCode (settings, mcpServers):
-  {{"mcpServers": {{"guap-teacher": {{"command": "uvx", "args": ["--from", "{PACKAGE_SOURCE}", "guap-teacher"]}}}}}}
+ZCode (~/.zcode/cli/config.json, ключ mcp.servers):
+  "mcp": {{"servers": {{"guap-teacher": {{"command": "uvx", "args": ["--from", "{PACKAGE_SOURCE}", "guap-teacher"]}}}}}}
 
 Codex (~/.codex/config.toml):
   [mcp_servers.guap-teacher]
