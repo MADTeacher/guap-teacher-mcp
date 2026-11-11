@@ -13,8 +13,15 @@ MCP-сервер для автоматизации работы преподав
 
 Понадобятся [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`
 на Windows, `curl -LsSf https://astral.sh/uv/install.sh | sh` на Linux/macOS),
-git (uvx клонирует репозиторий через него) и агент-харнесс, читающий
-`~/.agents/skills` (ZCode, Codex, Qwen Code; Claude Code не поддерживается).
+git (uvx клонирует репозиторий через него), агент-харнесс, читающий
+`~/.agents/skills` (ZCode, Codex, Qwen Code; Claude Code не поддерживается),
+и Playwright с браузером Chromium — ставятся вручную:
+
+```bash
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp playwright install chromium
+```
+
+Затем:
 
 ```bash
 uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
@@ -41,6 +48,24 @@ uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-tea
 
 или просто попросите агента «обнови guap-teacher». Личные копии навыков
 при этом не затрагиваются.
+
+### Браузер для входа (Chromium)
+
+Вход в кабинет (`authenticate`) открывает Chromium. Python-пакет
+playwright ставится зависимостью сам, а сам браузер (~150 МБ) при первом
+входе скачивается автоматически — 1–2 минуты, вызов `authenticate` в это
+время просто ждёт. Если хотите поставить заранее, или автозагрузка не
+прошла (прокси, закрытая сеть — тогда `authenticate` вернёт «Playwright
+Chromium is not available»), выполните руками:
+
+```bash
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp playwright install chromium
+```
+
+Браузер ставится в пользовательский каталог (`%LOCALAPPDATA%\ms-playwright`
+на Windows, `~/.cache/ms-playwright` на Linux/macOS) — права
+администратора не нужны. В локальном клоне для разработки то же самое:
+`uv run playwright install chromium`.
 
 ### Плагин ZCode
 

@@ -73,7 +73,11 @@ def _ensure_playwright_browsers() -> bool:
         if pool.submit(_probe_chromium_sync).result():
             return True
 
-    print("Installing Playwright Chromium (this may take 1-2 minutes)...")
+    # Never stdout: inside the stdio MCP server it is the JSON-RPC channel.
+    print(
+        "Installing Playwright Chromium (this may take 1-2 minutes)...",
+        file=sys.stderr,
+    )
     try:
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
@@ -82,7 +86,7 @@ def _ensure_playwright_browsers() -> bool:
             timeout=600,
         )
         if result.returncode == 0:
-            print("Playwright Chromium installed.")
+            print("Playwright Chromium installed.", file=sys.stderr)
             return True
         print(f"playwright install failed: {result.stderr}", file=sys.stderr)
         return False
