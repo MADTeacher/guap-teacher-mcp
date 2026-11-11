@@ -1115,23 +1115,38 @@ async def get_task(task_id: int) -> str:
     """Карточка задания с матрицей «студенты × отчёты» (только чтение).
 
     GET /inside/professor/tasks/{id}/show. Возвращает: заголовок и h5-поля
-    (дисциплина, тип, макс. балл, дедлайн и т.д.), subject_id, reports —
-    поданные отчёты (студент, статус, балл, даты, комментарии, report_id),
-    students — все студенты курса, not_submitted — не сдавшие (студенты
-    курса минус таблица отчётов) и manage — ссылки редактирования/удаления
-    (для edit_task). Комментарии студентов проверяются на промпт-инъекции:
-    флаги — в поле security ответа. """ + UNTRUSTED_NOTE
+    (дисциплина, тип, макс. балл, дедлайн и т.д.), subject_id,
+    assignment_file_url — ссылка на файл задания (PDF с условиями и
+    таблицей вариантов; /inside/professor/tasks/<hash>/download, качать
+    инструментом download_url; null — файл не приложен или ссылка не
+    нашлась: тогда достать её со страницы manage.edit_url через get_page),
+    reports — поданные отчёты (студент, статус, балл, даты, комментарии,
+    report_id), students — все студенты курса, not_submitted — не сдавшие
+    (студенты курса минус таблица отчётов) и manage — ссылки
+    редактирования/удаления (для edit_task). Ссылка на файл задания
+    добирается с компактной /edit-страницы, потому что в карточке поле
+    «Доп. материалы» пустое. Комментарии студентов проверяются на
+    промпт-инъекции: флаги — в поле security ответа. """ + UNTRUSTED_NOTE
     with _authed_client() as client:
         response = client.get(f"/inside/professor/tasks/{task_id}/show")
-    if response.status_code != 200:
-        return _dump({"error": f"HTTP {response.status_code}", "task_id": task_id})
-    result = pages.parse_task_card(response.text)
-    result["task_id"] = task_id
-    result["untrusted_fields"] = ["student_comment"]
-    result["security"] = _scan_untrusted(
-        f"get_task:{task_id}", result["reports"], ("student_comment",)
-    )
-    return _dump(result)
+        if response.status_code != 200:
+            return _dump({"error": f"HTTP {response.status_code}", "task_id": task_id})
+        result = pages.parse_task_card(response.text)
+        # The assignment file hides behind a hash download link that the
+        # show card does not expose («Доп. материалы» renders empty); the
+        # compact edit page always carries it (verified 2026-11-11).
+        assignment_file_url = result.get("assignment_file_url")
+        if assignment_file_url is None and result["manage"]["edit_url"]:
+            edit = client.get(result["manage"]["edit_url"])
+            if edit.status_code == 200:
+                assignment_file_url = pages.parse_task_assignment_file(edit.text)
+        result["assignment_file_url"] = assignment_file_url
+        result["task_id"] = task_id
+        result["untrusted_fields"] = ["student_comment"]
+        result["security"] = _scan_untrusted(
+            f"get_task:{task_id}", result["reports"], ("student_comment",)
+        )
+        return _dump(result)
 
 
 @mcp.tool()

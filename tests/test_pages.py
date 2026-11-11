@@ -454,6 +454,61 @@ def test_parse_task_card() -> None:
         {"student": "Бойцов Александр Валерьевич", "student_id": 56298},
         {"student": "Виноградова Вера-Надежда Борисовна", "student_id": 45801},
     ]
+    # no .../tasks/{hash}/download anchor on this fixture -> None
+    assert data["assignment_file_url"] is None
+
+
+TASK_EDIT_ASSIGNMENT_HTML = """
+<html><body>
+<h3 class="page__title">Редактировать задание</h3>
+<nav>
+  <a href="/inside/professor/tasks">Задания</a>
+  <a href="/inside/subjects/3419299">Автоматизация проектирования интернет-приложений (4513МК)</a>
+</nav>
+<a href="/inside/professor/tasks/9f86d081884c66e37ae7d1b1f5f7ce14/download?w=1"
+   target="_blank">Задание_ЛР1.pdf</a>
+<form action="/inside/professor/tasks/192715?semesters=28&amp;_method=PUT"
+      method="post" enctype="multipart/form-data">
+  <input type="hidden" name="token" value="csrf-9"/>
+  <input name="name" type="text" value="ЛР №1. Стек и очередь"/>
+  <input name="harddeadline" type="date" value="2026-11-20"/>
+</form>
+</body></html>
+"""
+
+
+def test_parse_task_assignment_file_from_edit_page() -> None:
+    from guap_teacher_mcp.pages import parse_task_assignment_file
+
+    # The compact edit page is the reliable source of the hash link;
+    # the query string (?w=1) must be stripped.
+    assert (
+        parse_task_assignment_file(TASK_EDIT_ASSIGNMENT_HTML)
+        == "/inside/professor/tasks/9f86d081884c66e37ae7d1b1f5f7ce14/download"
+    )
+
+
+def test_parse_task_assignment_file_absent() -> None:
+    from guap_teacher_mcp.pages import parse_task_assignment_file
+
+    # Show-card fixture without the anchor; report download links
+    # (.../reports/{id}/download) must not be mistaken for it.
+    assert parse_task_assignment_file(TASK_SHOW_HTML) is None
+
+
+def test_parse_task_card_assignment_file_from_show_page() -> None:
+    from guap_teacher_mcp.pages import parse_task_card
+
+    html = TASK_SHOW_HTML.replace(
+        '<a href="/inside/professor/tasks/187688/remove">Удалить</a>',
+        '<a href="/inside/professor/tasks/187688/remove">Удалить</a>\n'
+        '<a href="/inside/professor/tasks/abc123def456/download">Задание.pdf</a>',
+    )
+    data = parse_task_card(html)
+    assert (
+        data["assignment_file_url"]
+        == "/inside/professor/tasks/abc123def456/download"
+    )
 
 
 GROUP_GRADES_HTML = """

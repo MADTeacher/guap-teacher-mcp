@@ -25,7 +25,11 @@ Known page layouts (verified 2026-11):
                               {student}/create links) and submitted reports
 /inside/professor/tasks/{sem}/{id}/edit  multipart form; subjects[]/groups[]
                               selects are empty select2 widgets (absent from
-                              the POST = unchanged on the server)
+                              the POST = unchanged on the server); carries
+                              the assignment-file link .../tasks/{hash}/
+                              download — the show card renders its «Доп.
+                              материалы» line empty, so the edit page is the
+                              reliable source of that link
 /inside/professor/materials/create     multipart form (subjects[]/groups[]
                               supplied by the caller), file or external url
 /inside/professor/materials/{sem}/{id}/edit  multipart form, action
@@ -70,6 +74,9 @@ REPORT_CREATE_RE = re.compile(r"^/inside/professor/reports/(\d+)/(\d+)/create$")
 TASK_ACTION_RE = re.compile(r"^/inside/professor/tasks/(\d+)/show$")
 TASK_EDIT_RE = re.compile(r"^/inside/professor/tasks/(\d+)/(\d+)/edit$")
 TASK_REMOVE_RE = re.compile(r"^/inside/professor/tasks/(\d+)/remove$")
+# Assignment file (conditions + variant table) downloads under a hash
+# segment instead of a numeric id: /inside/professor/tasks/{hash}/download
+TASK_FILE_RE = re.compile(r"^/inside/professor/tasks/([^/]+)/download$")
 TASK_UPDATE_ACTION_RE = re.compile(r"^/inside/professor/tasks/(\d+)$")
 MATERIALS_STORE_ACTION_RE = re.compile(r"^/inside/professor/materials/store$")
 MATERIAL_EDIT_RE = re.compile(r"^/inside/professor/materials/(\d+)/(\d+)/edit$")
@@ -636,6 +643,23 @@ def parse_student_profile(html: str) -> dict:
     }
 
 
+def parse_task_assignment_file(html: str) -> Optional[str]:
+    """Extract the assignment-file link .../tasks/{hash}/download from HTML.
+
+    A task's assignment PDF (conditions + variant table) downloads via
+    /inside/professor/tasks/{hash}/download, where the id segment is a
+    hash, not a number. The show card renders its «Доп. материалы» line
+    empty, so the compact edit page /inside/professor/tasks/{sem}/{id}/
+    edit is the reliable source (verified 2026-11-11). Returns the first
+    matching link with its query string stripped, or None.
+    """
+    for anchor in _soup(html).find_all("a", href=True):
+        href = anchor["href"].split("?", 1)[0]
+        if TASK_FILE_RE.match(href):
+            return href
+    return None
+
+
 def parse_task_card(html: str) -> dict:
     """Parse a task card (GET /inside/professor/tasks/{id}/show).
 
@@ -651,6 +675,7 @@ def parse_task_card(html: str) -> dict:
     soup = _soup(html)
     card = parse_h5_card(html)
     subject_id: Optional[int] = None
+    assignment_file_url: Optional[str] = None
     manage: dict[str, Optional[str]] = {"edit_url": None, "remove_url": None}
 
     for anchor in soup.find_all("a", href=True):
@@ -664,6 +689,8 @@ def parse_task_card(html: str) -> dict:
         remove_match = TASK_REMOVE_RE.match(href)
         if remove_match:
             manage["remove_url"] = href
+        if assignment_file_url is None and TASK_FILE_RE.match(href):
+            assignment_file_url = href
 
     reports: list[dict] = []
     students: list[dict] = []
@@ -685,6 +712,7 @@ def parse_task_card(html: str) -> dict:
         "title": card["title"],
         "fields": card["fields"],
         "subject_id": subject_id,
+        "assignment_file_url": assignment_file_url,
         "reports": reports,
         "students": students,
         "not_submitted": not_submitted,
