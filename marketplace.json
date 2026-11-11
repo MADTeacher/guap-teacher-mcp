@@ -1,0 +1,19 @@
+{
+  "name": "guap-teacher-local",
+  "plugins": [
+    {
+      "name": "guap-teacher",
+      "source": "./guap-teacher",
+      "version": "0.1.0",
+      "description": "MCP-сервер guap-teacher для pro.guap.ru (Личный кабинет преподавателя ГУАП): отчёты, задания, ведомости, материалы, расписание. Навыки — личные копии в ~/.agents/skills.",
+      "displayName": "GUAP Teacher (pro.guap.ru)",
+      "displayName_i18n": {
+        "ru": "Преподаватель ГУАП (pro.guap.ru)"
+      },
+      "description_i18n": {
+        "ru": "MCP-сервер guap-teacher для Личного кабинета преподавателя ГУАП: отчёты студентов, задания, ведомости, материалы, расписание. Личные копии агентских навыков — в ~/.agents/skills (guap-teacher init)."
+      },
+      "category": "productivity"
+    }
+  ]
+}

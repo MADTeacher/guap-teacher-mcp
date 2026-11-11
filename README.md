@@ -38,6 +38,16 @@ uvx --refresh --from git+https://github.com/<owner>/guap-teacher-mcp guap-teache
 или просто попросите агента «обнови guap-teacher». Личные копии навыков
 при этом не затрагиваются.
 
+### Плагин ZCode (этот репозиторий — локальный маркетплейс)
+
+Для ZCode отдельный репозиторий не нужен: этот репозиторий сам является
+маркетплейсом. **Plugin Marketplace → Add → Add Plugin Marketplace** →
+вставить путь к клону этого репозитория → **Personal → guap-teacher-local
+→ guap-teacher → Install**. Плагин подключает MCP-сервер; после установки
+попросите агента выполнить `guap-teacher init` — детали в
+[guap-teacher/README.md](guap-teacher/README.md). Если guap-teacher уже
+подключён напрямую — оставьте одно подключение.
+
 ## Запуск
 
 MCP-сервер — команда `guap-teacher` без аргументов; в локальном клоне

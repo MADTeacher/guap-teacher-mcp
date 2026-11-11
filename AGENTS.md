@@ -43,6 +43,8 @@ src/guap_teacher_mcp/
   server.py    # MCPServer-инструменты (stdio) + skill:// ресурсы
 skills/        # канонические агентские навыки: skills/<имя>/SKILL.md
 .zcode/skills/ # стабы для локального обнаружения навыков в ZCode
+guap-teacher/  # плагин ZCode (манифест .zcode-plugin/ + onboarding README);
+               #   marketplace.json в корне репозитория = локальный маркетплейс
 tests/         # только офлайн-тесты (без сети!)
 ```
 
