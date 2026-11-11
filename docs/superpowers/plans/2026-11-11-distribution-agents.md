@@ -20,7 +20,7 @@
 - Идентификаторы и комментарии — английские; docstring'и MCP-инструментов и пользовательский вывод CLI — русские.
 - Build-backend — hatchling; пакеты в wheel: `src/guap_teacher_mcp`.
 - Перед каждым коммитом: затронутые тесты зелёные; в конце — `uv run pytest` целиком зелёный и `uv run python -c "import guap_teacher_mcp.server"` без ошибок.
-- URL публикации `git+https://github.com/<owner>/guap-teacher-mcp` содержит `<owner>`, пока у репозитория нет GitHub remote (открытый пункт спеки). Значение живёт в одной константе `PACKAGE_SOURCE` в `cli.py` и заменяется при публикации; в README-тексте задачи то же правило.
+- URL публикации `git+https://github.com/MADTeacher/guap-teacher-mcp` подставлен при публикации (в спеке это был открытый пункт с `<owner>`). Значение живёт в одной константе `PACKAGE_SOURCE` в `cli.py`; в README-тексте задачи то же правило.
 
 ---
 
@@ -537,9 +537,8 @@ from pathlib import Path
 
 from guap_teacher_mcp import distribute, skills
 
-# Publication URL: replace <owner> once the repository gets its GitHub
-# remote (open item tracked in the design spec).
-PACKAGE_SOURCE = "git+https://github.com/<owner>/guap-teacher-mcp"
+# Publication URL: the repository lives at github.com/MADTeacher/guap-teacher-mcp.
+PACKAGE_SOURCE = "git+https://github.com/MADTeacher/guap-teacher-mcp"
 
 MCP_SNIPPETS = f"""\
 Подключение MCP-сервера (stdio) в вашем харнессе:
@@ -794,7 +793,7 @@ git commit -m "docs(skills): add 'Настройка под себя' section po
 `~/.agents/skills` (ZCode, Codex, Qwen Code; Claude Code не поддерживается).
 
 ```bash
-uvx --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher init
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 ```
 
 `init` сеет канонические навыки в `~/.agents/skills/guap-*` (существующие
@@ -809,7 +808,7 @@ Codex / Qwen Code — вставьте подходящий в конфиг ва
 Обновление движка (например, когда изменилась вёрстка портала):
 
 ```bash
-uvx --refresh --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher --help
+uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher --help
 ```
 
 или просто попросите агента «обнови guap-teacher». Личные копии навыков

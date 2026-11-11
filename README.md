@@ -5,11 +5,9 @@ MCP-сервер для автоматизации работы преподав
 
 Публичного API у портала нет, поэтому сервер работает через сессию браузера:
 один вход руками через SSO → cookie → аккуратные GET-запросы и разбор HTML.
-Подход проверен студенческим аналогом [mcp-guap](https://github.com/overwaven/mcp-guap).
 
-> ⚠️ Неофициальный доступ. Вёрстка портала может измениться; используйте
-> только свою учётную запись. Для официального API обращайтесь в УЦР ГУАП
-> (ais_team@guap.ru).
+> ⚠️ Неофициальный доступ. Вёрстка портала может измениться; 
+> используйте только свою учётную запись.
 
 ## Установка (преподавателю)
 
@@ -17,7 +15,7 @@ MCP-сервер для автоматизации работы преподав
 `~/.agents/skills` (ZCode, Codex, Qwen Code; Claude Code не поддерживается).
 
 ```bash
-uvx --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher init
+uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 ```
 
 `init` сеет канонические навыки в `~/.agents/skills/guap-*` (существующие
@@ -32,7 +30,7 @@ Codex / Qwen Code — вставьте подходящий в конфиг ва
 Обновление движка (например, когда изменилась вёрстка портала):
 
 ```bash
-uvx --refresh --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher --help
+uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher --help
 ```
 
 или просто попросите агента «обнови guap-teacher». Личные копии навыков
@@ -60,7 +58,7 @@ MCP-сервер — команда `guap-teacher` без аргументов; 
   "mcpServers": {
     "guap-teacher": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/<owner>/guap-teacher-mcp", "guap-teacher"]
+      "args": ["--from", "git+https://github.com/MADTeacher/guap-teacher-mcp", "guap-teacher"]
     }
   }
 }

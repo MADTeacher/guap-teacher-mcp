@@ -1,17 +1,16 @@
 {
   "name": "guap-teacher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP-сервер guap-teacher для pro.guap.ru (Личный кабинет преподавателя ГУАП): отчёты студентов, задания, дисциплины, ведомости, материалы, расписание. Личные копии агентских навыков — в ~/.agents/skills (создаются командой guap-teacher init).",
   "author": {
     "name": "Stanislav Chernyshev"
   },
   "mcpServers": {
     "guap-teacher": {
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "--directory",
-        "C:/Users/MADTeacher/Documents/GitHub/guap-teacher-mcp",
-        "run",
+        "--from",
+        "git+https://github.com/MADTeacher/guap-teacher-mcp",
         "guap-teacher"
       ]
     }

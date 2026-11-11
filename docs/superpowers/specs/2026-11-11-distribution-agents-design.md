@@ -77,7 +77,7 @@ MCP-конфиги действующих установок не меняютс
    повторный запуск доустанавливает только отсутствующие (в т.ч. новые
    навыки, появившиеся в каноне).
 2. Печатает сниппеты MCP-конфига (ZCode, Codex, Qwen) с командой запуска
-   `uvx --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher`.
+   `uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher`.
 3. Печатает сводку: что посеяно, что пропущено (уже существует), куда.
 
 ### `skills diff`
@@ -106,7 +106,7 @@ MCP-конфиги действующих установок не меняютс
 
 Канонический `skills/` включается в dist как package data (настройка
 build-backend в `pyproject.toml`); установка движка —
-`uvx --from git+https://github.com/<owner>/guap-teacher-mcp`. Публикация
+`uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp`. Публикация
 на PyPI — вне scope (пересмотр позже, git+https достаточно).
 
 ## Обновления

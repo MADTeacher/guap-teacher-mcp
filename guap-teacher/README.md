@@ -31,14 +31,10 @@ MCP-конфига для ZCode / Codex / Qwen Code. После этого на�
 тестов» → агент правит `~/.agents/skills/guap-review/SKILL.md`.
 Сравнить личные копии с каноном: `guap-teacher skills diff`.
 
-## Конфигурация MCP: сейчас и после публикации
+## Конфигурация MCP
 
-Пока у репозитория нет GitHub remote, сервер запускается из локального
-клона (см. `mcpServers` в `.zcode-plugin/plugin.json`; после раздачи
-преподавателям путь в `--directory` — путь к их клону, либо
-используйте uvx-форму ниже).
-
-**После публикации** заменить в `.zcode-plugin/plugin.json` на:
+Манифест `.zcode-plugin/plugin.json` запускает сервер через uvx прямо
+из GitHub (репозиторий публичный — иначе uvx-установка не работает):
 
 ```json
 "mcpServers": {
@@ -46,22 +42,25 @@ MCP-конфига для ZCode / Codex / Qwen Code. После этого на�
     "command": "uvx",
     "args": [
       "--from",
-      "git+https://github.com/<owner>/guap-teacher-mcp",
+      "git+https://github.com/MADTeacher/guap-teacher-mcp",
       "guap-teacher"
     ]
   }
 }
 ```
 
-и поднять версию манифеста. `<owner>` подставляется одновременно с
-константой `PACKAGE_SOURCE` в `src/guap_teacher_mcp/cli.py` и командами
-в README основного репозитория (открытый пункт спеки распространения).
+Тот же путь зашит в константе `PACKAGE_SOURCE` в
+`src/guap_teacher_mcp/cli.py` и в командах в README основного
+репозитория. Для разработки удобнее локальный клон:
+`uv --directory <путь к guap-teacher-mcp> run guap-teacher` — например,
+прямым подключением в настройках ZCode; тогда плагинное подключение
+стоит отключить, чтобы сервер не дублировался.
 
 ## Замечания
 
 - Если guap-teacher уже подключён в ZCode напрямую (секция mcpServers
   настроек) — оставьте только одно подключение, иначе сервер задублируется.
-- Обновление движка до публикации: `git pull` в клоне репозитория;
-  после публикации: `uvx --refresh --from git+https://github.com/<owner>/guap-teacher-mcp guap-teacher --help`.
+- Обновление движка: `uvx --refresh --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher --help`;
+  для разработки — `git pull` в клоне.
 - Вход в портал — всегда руками преподавателя через SSO
   (`authenticate`); креды нигде не хранятся.

@@ -13,9 +13,8 @@ from pathlib import Path
 
 from guap_teacher_mcp import distribute, skills
 
-# Publication URL: replace <owner> once the repository gets its GitHub
-# remote (open item tracked in the design spec).
-PACKAGE_SOURCE = "git+https://github.com/<owner>/guap-teacher-mcp"
+# Publication URL: the repository lives at github.com/MADTeacher/guap-teacher-mcp.
+PACKAGE_SOURCE = "git+https://github.com/MADTeacher/guap-teacher-mcp"
 
 MCP_SNIPPETS = f"""\
 Подключение MCP-сервера (stdio) в вашем харнессе:

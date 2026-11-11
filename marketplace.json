@@ -4,7 +4,7 @@
     {
       "name": "guap-teacher",
       "source": "./guap-teacher",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "MCP-сервер guap-teacher для pro.guap.ru (Личный кабинет преподавателя ГУАП): отчёты, задания, ведомости, материалы, расписание. Навыки — личные копии в ~/.agents/skills.",
       "displayName": "GUAP Teacher (pro.guap.ru)",
       "displayName_i18n": {
