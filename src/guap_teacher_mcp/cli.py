@@ -1,17 +1,19 @@
 """Console entry point for ``guap-teacher``.
 
 Subcommands: ``init`` (seed personal skill copies), ``skills diff``
-(compare them with the canonical ones). Without a subcommand the MCP
-server starts on stdio exactly as before, so existing MCP client configs
-keep working.
+(compare them with the canonical ones), ``alerts`` (read the local
+prompt-injection journal). Without a subcommand the MCP server starts on
+stdio exactly as before, so existing MCP client configs keep working.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from pathlib import Path
 
-from guap_teacher_mcp import distribute, skills
+from guap_teacher_mcp import distribute, guard, skills
 
 # Publication URL: the repository lives at github.com/MADTeacher/guap-teacher-mcp.
 PACKAGE_SOURCE = "git+https://github.com/MADTeacher/guap-teacher-mcp"
@@ -69,6 +71,36 @@ def _cmd_skills_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def _download_dir(value: str | None) -> Path:
+    # Same rule as server.default_download_dir, repeated here so that
+    # `skills diff`/`alerts` do not import the heavy MCP server module.
+    if value:
+        return Path(value)
+    env = os.environ.get("GUAP_DOWNLOAD_DIR")
+    return Path(env) if env else Path.cwd() / ".guap_mcp_tmp"
+
+
+def _cmd_alerts(args: argparse.Namespace) -> int:
+    path = guard.alerts_path(_download_dir(args.dir))
+    entries = guard.read_alerts(path, args.limit)
+    if args.json:
+        print(json.dumps(entries, ensure_ascii=False, indent=2))
+        return 0
+    if not entries:
+        print(f"Алертов нет. Журнал: {path}")
+        return 0
+    print(f"Журнал: {path} (свежие сверху)")
+    for entry in reversed(entries):
+        student = f" — {entry['student']}" if entry.get("student") else ""
+        print(
+            f"{entry.get('ts', '?')} [{entry.get('severity', '?').upper()}] "
+            f"{entry.get('rule', '?')}{student}"
+        )
+        print(f"  источник: {entry.get('source', '?')}, поле: {entry.get('location', '?')}")
+        print(f"  «{entry.get('excerpt', '')}»")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse CLI args; without a subcommand start the MCP server (stdio)."""
     parser = argparse.ArgumentParser(
@@ -98,6 +130,23 @@ def main(argv: list[str] | None = None) -> int:
         help="каталог личных навыков (по умолчанию GUAP_SKILLS_DIR или ~/.agents/skills)",
     )
     p_diff.set_defaults(func=_cmd_skills_diff)
+
+    p_alerts = sub.add_parser(
+        "alerts", help="журнал промпт-инъекций в работах студентов (security_log.jsonl)"
+    )
+    p_alerts.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="сколько свежих записей показать (по умолчанию 50)",
+    )
+    p_alerts.add_argument(
+        "--dir",
+        default=None,
+        help="каталог загрузок с журналом (по умолчанию GUAP_DOWNLOAD_DIR или <cwd>/.guap_mcp_tmp)",
+    )
+    p_alerts.add_argument("--json", action="store_true", help="вывести сырой JSON")
+    p_alerts.set_defaults(func=_cmd_alerts)
 
     args = parser.parse_args(argv)
 

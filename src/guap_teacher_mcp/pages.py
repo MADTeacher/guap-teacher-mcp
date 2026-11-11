@@ -60,7 +60,8 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4.element import Comment, Declaration, Doctype, ProcessingInstruction
 
 SUBJECT_LINK_RE = re.compile(r"^/inside/subjects/(\d+)$")
 PAGE_PARAM_RE = re.compile(r"[?&]page=(\d+)")
@@ -89,7 +90,50 @@ def _soup(html: str) -> BeautifulSoup:
 
 
 def _cell_text(cell) -> str:
-    return re.sub(r"\s+", " ", cell.get_text(" ", strip=True)).strip()
+    return re.sub(r"\s+", " ", _visible_text(cell)).strip()
+
+
+# Hidden-markup hygiene (prompt-injection defense): a student comment is
+# rendered by the portal, and HTML-hidden nodes (<script>, [hidden],
+# display:none) would still leak through get_text() into the agent's
+# context. Only visibly rendered text is parsed; guard.py scans what's left.
+_HIDDEN_STYLE_RE = re.compile(
+    r"display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:[.;]|$)|font-size\s*:\s*0",
+    re.IGNORECASE,
+)
+
+
+def _is_hidden(node: Tag) -> bool:
+    if node.name in ("script", "style", "template"):
+        return True
+    if node.has_attr("hidden"):
+        return True
+    style = node.get("style")
+    if isinstance(style, list):
+        style = ";".join(style)
+    return bool(_HIDDEN_STYLE_RE.search(style or ""))
+
+
+def _visible_text(node, separator: str = " ") -> str:
+    """get_text() that skips hidden subtrees (script/style/[hidden]/display:none)."""
+    parts: list[str] = []
+
+    def walk(current) -> None:
+        if isinstance(current, NavigableString):
+            # Comments/doctype/PI are NavigableStrings too — not rendered.
+            if isinstance(
+                current, (Comment, Declaration, Doctype, ProcessingInstruction)
+            ):
+                return
+            parts.append(str(current))
+            return
+        if isinstance(current, Tag) and _is_hidden(current):
+            return
+        for child in current.children:
+            walk(child)
+
+    walk(node)
+    return separator.join(parts)
 
 
 def _first_table(html: str) -> Optional[BeautifulSoup]:
@@ -302,7 +346,7 @@ def parse_h5_card(html: str) -> dict[str, str]:
     title_node = soup.select_one("h3.page__title") or soup.select_one("h3")
     fields: dict[str, str] = {}
     for h5 in soup.find_all("h5"):
-        text = h5.get_text(" ", strip=True)
+        text = re.sub(r"\s+", " ", _visible_text(h5)).strip()
         if ":" in text:
             key, _, value = text.partition(":")
             fields[key.strip()] = value.strip()
