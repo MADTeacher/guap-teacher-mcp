@@ -155,6 +155,27 @@ args = ["--from", "git+https://github.com/MADTeacher/guap-teacher-mcp", "guap-te
 }
 ```
 
+Для DeepSeek Harness — YAML-вставка в
+`.dsh/profiles/<профиль>/cordis.patch.yml`:
+
+```yaml
+- insert:
+    - id: mcp-guap-teacher
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: guap-teacher
+        transport: stdio
+        command: uvx
+        args:
+          - "--from"
+          - "git+https://github.com/MADTeacher/guap-teacher-mcp"
+          - "guap-teacher"
+        toolCallTimeoutMs: 120000
+```
+
+Если `uvx` не находится из процесса харнесса, укажите абсолютный путь —
+например `C:/Users/<вы>/.local/bin/uvx.exe` на Windows.
+
 Если работаете с локальным клоном, замените uvx на
 `uv --directory <путь к guap-teacher-mcp> run guap-teacher`.
 

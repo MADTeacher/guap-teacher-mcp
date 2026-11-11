@@ -33,6 +33,20 @@ Codex (~/.codex/config.toml):
 Qwen Code (~/.qwen/settings.json):
   {{"mcpServers": {{"guap-teacher": {{"command": "uvx", "args": ["--from", "{PACKAGE_SOURCE}", "guap-teacher"]}}}}}}
 
+DeepSeek Harness (.dsh/profiles/<профиль>/cordis.patch.yml):
+- insert:
+    - id: mcp-guap-teacher
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: guap-teacher
+        transport: stdio
+        command: uvx
+        args:
+          - "--from"
+          - "{PACKAGE_SOURCE}"
+          - "guap-teacher"
+        toolCallTimeoutMs: 120000
+
 Локальный clone вместо uvx:
   uv --directory <путь к guap-teacher-mcp> run guap-teacher
 """

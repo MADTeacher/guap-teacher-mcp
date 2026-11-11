@@ -27,8 +27,8 @@ Read-инструменты только читают данные портал�
   на Windows или `curl -LsSf https://astral.sh/uv/install.sh | sh`
   на Linux/macOS;
 - git — uvx клонирует репозиторий через него;
-- агентский харнесс, читающий `~/.agents/skills`: ZCode, Codex, Qwen Code.
-  Claude Code не поддерживается;
+- агентский харнесс, читающий `~/.agents/skills`: ZCode, Codex, Qwen Code
+  и DeepSeek Harness. Claude Code не поддерживается;
 - Chromium для входа.
 
 Порядок простой: сначала браузер, потом настройка.
@@ -45,7 +45,7 @@ uvx --from git+https://github.com/MADTeacher/guap-teacher-mcp guap-teacher init
 
 `init` раскладывает канонические навыки в `~/.agents/skills/guap-*`
 (существующие файлы не перезаписывает) и печатает сниппеты MCP-конфига
-для ZCode, Codex и Qwen Code. Вставьте подходящий в настройки харнесса.
+для ZCode, Codex, Qwen Code и DeepSeek Harness. Вставьте подходящий в настройки харнесса.
 
 Если не хочется повторять шаги руками, попросите своего агента:
 
@@ -88,7 +88,7 @@ guap-teacher → Install**. Плагин подключает MCP-сервер; 
 Если guap-teacher уже подключён напрямую, оставьте одно подключение:
 иначе сервер запустится дважды.
 
-Другим харнессам (Codex, Qwen Code, любому с `~/.agents/skills`) плагин
+Другим харнессам (Codex, Qwen Code, DeepSeek Harness, любому с `~/.agents/skills`) плагин
 не нужен: `init` печатает сниппеты, а навыки подхватятся из каталога сами.
 
 ## Запуск
@@ -274,8 +274,8 @@ Codex и Qwen Code используют ключ `mcpServers` (ZCode поним�
 | `skill://<имя>` | содержимое `SKILL.md` (text/markdown) |
 
 Личные копии навыков живут в `~/.agents/skills/<имя>/` (каталог по
-умолчанию, переопределяется `GUAP_SKILLS_DIR`). ZCode, Codex и Qwen Code
-читают его нативно; ресурсы `skill://` отдают те же навыки любому клиенту
+умолчанию, переопределяется `GUAP_SKILLS_DIR`). ZCode, Codex, Qwen Code и
+DeepSeek Harness читают его нативно; ресурсы `skill://` отдают те же навыки любому клиенту
 с `resources/list` и `resources/read`. При совпадении имени побеждает
 личная копия. Канонические навыки едут внутри пакета, сравнить с ними
 личные — `guap-teacher skills diff`. Стабы `.zcode/skills/` нужны только
