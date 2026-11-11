@@ -885,18 +885,55 @@ def test_parse_group_info_students() -> None:
     assert data["group"] == "4617"
     assert data["students"] == [
         {
+            "num": 1,
             "name": "Амбарцумян Саргис Эдгарович",
             "status": "Зачислен",
             "student_card": "2026/1089",
             "avg_mark": "0",
+            "student_id": 57083,
         },
         {
+            "num": 2,
             "name": "Балашов Андрей Дмитриевич",
             "status": "Зачислен",
             "student_card": "2026/3789",
             "avg_mark": "0",
+            "student_id": 59252,
         },
     ]
+
+
+GROUP_INFO_NO_NUM_HTML = """
+<html><body>
+<h3 class="page__title m-0">Группа 4617</h3>
+<table class="table table-bordered align-middle table-striped mb-0">
+  <tr><th>№</th><th style="width: 150px;">ФИО</th><th><span>Статус</span></th>
+      <th><span>Номер студенческого</span></th><th><span>Средний балл</span></th></tr>
+  <tr><td class="text-center"></td>
+      <td class="text-left">Иванов Иван</td>
+      <td class="text-left">Зачислен</td>
+      <td class="text-left">2026/1001</td>
+      <td class="text-center">0</td></tr>
+  <tr><td class="text-center"></td>
+      <td class="text-left"><a target="_blank" href="/inside/profile/59252">
+          <span class="link-switch link-switch-blue">Балашов Андрей Дмитриевич</span></a></td>
+      <td class="text-left">Зачислен</td>
+      <td class="text-left">2026/3789</td>
+      <td class="text-center">0</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_parse_group_info_num_fallback() -> None:
+    from guap_teacher_mcp.pages import parse_group_info
+
+    data = parse_group_info(GROUP_INFO_NO_NUM_HTML)
+    # empty «№» cells fall back to the row position, student_id — to None
+    # when the name cell carries no profile link
+    assert [s["num"] for s in data["students"]] == [1, 2]
+    assert data["students"][0]["student_id"] is None
+    assert data["students"][1]["student_id"] == 59252
 
 
 TASK_REPORTS_DOWNLOAD_HTML = """

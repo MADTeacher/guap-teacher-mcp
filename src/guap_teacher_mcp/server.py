@@ -1268,14 +1268,17 @@ async def get_group_grades(subject_id: int, group_id: int) -> str:
 
 @mcp.tool()
 async def get_group_info(group_id: int) -> str:
-    """Карточка группы: номер и список студентов (только чтение).
+    """Список группы по явному id: номер группы и студенты с № по журналу (чтение).
 
-    GET /inside/groups/{gid}/info: номер группы и таблица студентов —
-    ФИО, статус, номер студенческого билета, средний балл. id групп —
-    из ссылок list_notices / карточки дисциплины или filter_options.
+    GET /inside/groups/{gid}/info (например /inside/groups/7434/info):
+    номер группы и таблица студентов — у каждого явный num (№ по журналу
+    группы), ФИО, статус, номер студенческого билета, средний балл и
+    student_id профиля. id группы — из карточки дисциплины
+    (get_subject.groups[].group_id), ссылок list_notices/get_notice или
+    filter_options отчётов.
 
     Args:
-        group_id: id группы (например из list_notices → groups[].group_id).
+        group_id: id группы (например 7434).
     """
     with _authed_client() as client:
         response = client.get(f"/inside/groups/{group_id}/info")

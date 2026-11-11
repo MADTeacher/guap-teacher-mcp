@@ -936,8 +936,11 @@ def parse_group_info(html: str) -> dict:
     """Parse a group card (GET /inside/groups/{gid}/info).
 
     The h3.page__title label ("Группа N") gives the group number; the
-    students table is №/ФИО/Статус/Номер студенческого/Средний балл
-    (avg_mark is the raw cell text — the portal shows plain numbers).
+    students table is №/ФИО/Статус/Номер студенческого/Средний балл.
+    Every student keeps the portal's explicit journal number (num — the
+    «№» cell, falling back to the row position when the cell is empty)
+    and student_id from the /inside/profile/{id} link; avg_mark is the
+    raw cell text — the portal shows plain numbers.
     """
     soup = _soup(html)
     title_node = soup.select_one("h3.page__title")
@@ -955,16 +958,27 @@ def parse_group_info(html: str) -> dict:
         headers = [_cell_text(c) for c in first_row.find_all(["th", "td"])]
         if "ФИО" not in headers or "Номер студенческого" not in headers:
             continue
-        for tr in table.find_all("tr")[1:]:
+        for position, tr in enumerate(table.find_all("tr")[1:], start=1):
             cells = tr.find_all("td")
             if len(cells) < 5:
                 continue
+            student_id: Optional[int] = None
+            student_link = cells[1].find("a", href=True)
+            if student_link is not None:
+                profile_match = PROFILE_LINK_RE.match(
+                    student_link["href"].split("?", 1)[0]
+                )
+                if profile_match:
+                    student_id = int(profile_match.group(1))
+            num_text = _cell_text(cells[0])
             students.append(
                 {
+                    "num": int(num_text) if num_text.isdigit() else position,
                     "name": _cell_text(cells[1]),
                     "status": _cell_text(cells[2]),
                     "student_card": _cell_text(cells[3]),
                     "avg_mark": _cell_text(cells[4]),
+                    "student_id": student_id,
                 }
             )
     return {"group": group_label, "students": students}
